@@ -18,8 +18,7 @@ class ParseTxt:
         row = 3  # this row number corresponds to excel row number. Row 3 is first register row in excel file.
         f = open(filename,encoding='utf-8')
         # Module name and Description
-        t = f.readline().split('\t')[1].split('(')
-        tmp = [filename.split('.')[0].upper(),'','','','','','','','','','','???',2]
+        tmp = [filename.split('.')[0],'','','','','','','','','','','???',2]
         reg_data.append(tmp)
         while True:
             line = f.readline()
@@ -63,13 +62,14 @@ class ParseTxt:
             # EX: Bit	Name	Function		
             if line.startswith('Bit	Name	Function'):
                 idx = 0 # bit index
+                start_row = row
                 description_row = row
                 while True:
                     line = f.readline()
                     t = line.split('\t')
                     # EX: 7	SPIF	SPI0 Interrupt Flag.
                     if (len(t[0]) == 1) and (t[0].isnumeric()) :# 7->
-                        tmp = ['','','',t[0],t[1].upper(),bit_rw[idx],bit_rst[idx],'','','',t[2].strip(),'',row]
+                        tmp = ['','','',t[0],t[1],bit_rw[idx],bit_rst[idx],'','','',t[2].strip(),'',row]
                         description_row = row
                         idx += 1
                         row += 1
@@ -78,37 +78,73 @@ class ParseTxt:
                     # EX: 3:2	NSSMD[1:0]	Slave Select Mode.
                     elif(len(t[0]) == 3) and t[0][0].isnumeric() and (t[0][1] == ':') and t[0][2].isnumeric():# 7:0->
                         bit_num = int(t[0][0])
-                        bit_name = t[1].split('[')[0].upper()
+                        bit_name = t[1].split('[')[0]
                         short_name = t[2].strip()
                         description_row = row
                         while True:
-                            tmp = ['','','',bit_num,bit_name,bit_rw[idx],bit_rst[idx],'','','',short_name,'',row]
-                            short_name = ''
+                            tmp = ['','','',bit_num,bit_name,bit_rw[idx],bit_rst[idx],'','','','','',row]
+#                            print(tmp)
                             idx += 1
                             row += 1
                             reg_data.append(tmp)
                             bit_num -= 1
                             if bit_num < int(t[0][2]):
-                               break
+                                description_row = row - 1
+                                reg_data[description_row - 2][11] = short_name
+                                break
                     else:
                         t = line.split(':')
+#                        print(t)
                         if t[0][0].isnumeric() and ((t[0][-1] == 'x') or (t[0][-1].isnumeric())): # 1x:
                             # EX: 1x: 4-Wire Single-Master Mode. NSS signal is mapped as an output from the device and will assume the value of NSSMD0.		
                             if (t[0][-1] == 'x'):
-                                tmp = ['','','','','','','','???',t[0],'','',t[1].strip('\n'),row]
+                                tmp1x = t[0][0:-1] + '0'
+                                tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                row +=1
+                                reg_data.append(tmp)
+                                tmp1x = t[0][0:-1] + '1'
+                                tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
                             # EX: 00: 3-Wire Slave or 3-Wire Master Mode. NSS signal is not routed to a port pin.                                
                             else:    
                                 tmp = ['','','','','','','','???',int(t[0],2),'','',t[1].strip('\n'),row]
                             row +=1
                             reg_data.append(tmp)
-                        else: # description. EX: Selects between the following NSS operation modes: 
+                        else: # description. EX: Selects between the following NSS operation modes:
+                            # reg_data start from row 2 in excel file, so we minus 2 here.
                             reg_data[description_row - 2][11] += line.strip('\n')
                         
                     # two CR means reach end of this register definition. 
                     if line.startswith('\n'):
                         line = f.readline()
                         if line.startswith('\n'):
-#                            print("endof register")
+                            num_rows = row - start_row
+                            row_tmp = [x for x in range(0,num_rows)]
+                            tmp_idx = num_rows
+                            reg_idx = start_row - 2
+#                            print('row=%s,start_row=%s'%(row,start_row))
+                            while True:
+                                cnt = 1
+                                idx = reg_idx + 1
+                                while True:
+                                    if idx == (row - 2):
+                                        break
+                                    if reg_data[idx][3] == '':
+                                        idx += 1
+                                        cnt += 1
+                                    else:
+                                        break
+                                tmp_idx -= cnt
+#                                print('********')
+#                                print('tmp_idx=%s,cnt=%s,reg_idx=%s'%(tmp_idx,cnt,reg_idx))
+                                for i in range(0,cnt):
+                                    row_tmp[tmp_idx + i] = reg_data[reg_idx+i][12]
+                                reg_idx += cnt
+                                if reg_idx == (row - 2):
+                                    break
+                            for i in range(0, num_rows):
+                                old_idx = row_tmp[i] - 2
+                                reg_data[old_idx][12] = i + start_row
+#                                print('old_idx=%d  i+start_row = %d'%(old_idx,i+start_row))
                             return (offset,row)
             line = f.readline()
             if len(line) == 0:

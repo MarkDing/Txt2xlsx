@@ -1,139 +1,146 @@
-﻿24. 	 Enhanced Serial Peripheral Interface (SPI0)
-The Enhanced Serial Peripheral Interface (SPI0) provides access to a flexible, full-duplex synchronous serial bus. SPI0 can operate as a master or slave device in both 3-wire or 4-wire modes, and supports multiple masters and slaves on a single SPI bus. The slave-select (NSS) signal can be configured as an input to select SPI0 in slave mode, or to disable Master Mode operation in a multi-master environment, avoiding contention on the SPI bus when more than one master attempts simultaneous data transfers. NSS can also be configured as a chip-select output in master mode, or disabled for 3-wire operation. Additional general purpose port I/O pins can be used to select multiple slave devices in master mode.
+﻿24.	Enhanced Serial Peripheral Interface (SPI0 and SPI1)
+The Enhanced Serial Peripheral Interfaces (SPI0 and SPI1) provide access to two identical, flexible, full-duplex synchronous serial busses. Both SPI0 and SPI1 will be referred to collectively as SPIn. SPIn can operate as a master or slave device in both 3-wire or 4-wire modes, and supports multiple masters and slaves on a single SPI bus. The slave-select (NSS) signal can be configured as an input to select SPIn in slave mode, or to disable Master Mode operation in a multi-master environment, avoiding contention on the SPI bus when more than one master attempts simultaneous data transfers. NSS can also be configured as a chip-select output in master mode, or disabled for 3-wire operation. Additional general purpose port I/O pins can be used to select multiple slave devices in master mode.
 
 Figure 24.1. SPI Block Diagram
-24.1. 	 Signal Descriptions
-The four signals used by SPI0 (MOSI, MISO, SCK, NSS) are described below. 
-24.1.1.	 Master Out, Slave In (MOSI)
-The master-out, slave-in (MOSI) signal is an output from a master device and an input to slave devices. It is used to serially transfer data from the master to the slave. This signal is an output when SPI0 is operating as a master and an input when SPI0 is operating as a slave. Data is transferred most-significant bit first. When configured as a master, MOSI is driven by the MSB of the shift register in both 3- and 4-wire mode.
-24.1.2.	 Master In, Slave Out (MISO)
-The master-in, slave-out (MISO) signal is an output from a slave device and an input to the master device. It is used to serially transfer data from the slave to the master. This signal is an input when SPI0 is operating as a master and an output when SPI0 is operating as a slave. Data is transferred most-significant bit first. The MISO pin is placed in a high-impedance state when the SPI module is disabled and when the SPI operates in 4-wire mode as a slave that is not selected. When acting as a slave in 3-wire mode, MISO is always driven by the MSB of the shift register.
-24.1.3.	 Serial Clock (SCK)
-The serial clock (SCK) signal is an output from the master device and an input to slave devices. It is used to synchronize the transfer of data between the master and slave on the MOSI and MISO lines. SPI0 generates this signal when operating as a master. The SCK signal is ignored by a SPI slave when the slave is not selected (NSS = 1) in 4-wire slave mode.
-24.1.4.	 Slave Select (NSS)
-The function of the slave-select (NSS) signal is dependent on the setting of the NSSMD1 and NSSMD0 bits in the SPI0CN register. There are three possible modes that can be selected with these bits:
-1.	NSSMD[1:0] = 00: 3-Wire Master or 3-Wire Slave Mode: SPI0 operates in 3-wire mode, and NSS is disabled. When operating as a slave device, SPI0 is always selected in 3-wire mode. Since no select signal is present, SPI0 must be the only slave on the bus in 3-wire mode. This is intended for point-to-point communication between a master and one slave.
-2.	NSSMD[1:0] = 01: 4-Wire Slave or Multi-Master Mode: SPI0 operates in 4-wire mode, and NSS is enabled as an input. When operating as a slave, NSS selects the SPI0 device. When operating as a master, a 1-to-0 transition of the NSS signal disables the master function of SPI0 so that multiple master devices can be used on the same SPI bus.
-3.	NSSMD[1:0] = 1x: 4-Wire Master Mode: SPI0 operates in 4-wire mode, and NSS is enabled as an output. The setting of NSSMD0 determines what logic level the NSS pin will output. This configuration should only be used when operating SPI0 as a master device.
-See Figure 24.2, Figure 24.3, and Figure 24.4 for typical connection diagrams of the various operational modes. Note that the setting of NSSMD bits affects the pinout of the device. When in 3-wire master or 3-wire slave mode, the NSS pin will not be mapped by the crossbar. In all other modes, the NSS signal will be mapped to a pin on the device. See Section “19. Port Input/Output” on page 153 for general purpose port I/O and crossbar information.
-24.2. 	 SPI0 Master Mode Operation
-A SPI master device initiates all data transfers on a SPI bus. SPI0 is placed in master mode by setting the Master Enable flag (MSTEN, SPI0CN.6). Writing a byte of data to the SPI0 data register (SPI0DAT) when in master mode writes to the transmit buffer. If the SPI shift register is empty, the byte in the transmit buffer is moved to the shift register, and a data transfer begins. The SPI0 master immediately shifts out the data serially on the MOSI line while providing the serial clock on SCK. The SPIF (SPI0CN.7) flag is set to logic 1 at the end of the transfer. If interrupts are enabled, an interrupt request is generated when the SPIF flag is set. While the SPI0 master transfers data to a slave on the MOSI line, the addressed SPI slave device simultaneously transfers the contents of its shift register to the SPI master on the MISO line in a full-duplex operation. Therefore, the SPIF flag serves as both a transmit-complete and receive-data-ready flag. The data byte received from the slave is transferred MSB-first into the master's shift register. When a byte is fully shifted into the register, it is moved to the receive buffer where it can be read by the processor by reading SPI0DAT. 
-When configured as a master, SPI0 can operate in one of three different modes: multi-master mode, 3-wire single-master mode, and 4-wire single-master mode. The default, multi-master mode is active when NSSMD1 (SPI0CN.3) = 0 and NSSMD0 (SPI0CN.2) = 1. In this mode, NSS is an input to the device, and is used to disable the master SPI0 when another master is accessing the bus. When NSS is pulled low in this mode, MSTEN (SPI0CN.6) and SPIEN (SPI0CN.0) are set to 0 to disable the SPI master device, and a Mode Fault is generated (MODF, SPI0CN.5 = 1). Mode Fault will generate an interrupt if enabled. SPI0 must be manually re-enabled in software under these circumstances. In multi-master systems, devices will typically default to being slave devices while they are not acting as the system master device. In multi-master mode, slave devices can be addressed individually (if needed) using general-purpose I/O pins. Figure 24.2 shows a connection diagram between two master devices in multiple-master mode.
-3-wire single-master mode is active when NSSMD1 (SPI0CN.3) = 0 and NSSMD0 (SPI0CN.2) = 0. In this mode, NSS is not used, and is not mapped to an external port pin through the crossbar. Any slave devices that must be addressed in this mode should be selected using general-purpose I/O pins. Figure 24.3 shows a connection diagram between a master device in 3-wire master mode and a slave device.
-4-wire single-master mode is active when NSSMD1 (SPI0CN.3) = 1. In this mode, NSS is configured as an output pin, and can be used as a slave-select signal for a single SPI device. In this mode, the output value of NSS is controlled (in software) with the bit NSSMD0 (SPI0CN.2). Additional slave devices can be addressed using general-purpose I/O pins. Figure 24.4 shows a connection diagram for a master device in 4-wire master mode and two slave devices.
+24.1.	Signal Descriptions
+The four signals used by each SPIn (MOSI, MISO, SCK, NSS) are described below. 
+24.1.1.	Master Out, Slave In (MOSI)
+The master-out, slave-in (MOSI) signal is an output from a master device and an input to slave devices. It is used to serially transfer data from the master to the slave. This signal is an output when SPIn is operating as a master anSPInd an input when SPIn is operating as a slave. Data is transferred most-significant bit first. When configured as a master, MOSI is driven by the MSB of the shift register in both 3- and 4-wire mode.
+24.1.2.	Master In, Slave Out (MISO)
+The master-in, slave-out (MISO) signal is an output from a slave device and an input to the master device. It is used to serially transfer data from the slave to the master. This signal is an input when SPIn is operating as a master and an output when SPIn is operating as a slave. Data is transferred most-significant bit first. The MISO pin is placed in a high-impedance state when the SPI module is disabled and when the SPI operates in 4-wire mode as a slave that is not selected. When acting as a slave in 3-wire mode, MISO is always driven by the MSB of the shift register.
+24.1.3.	Serial Clock (SCK)
+The serial clock (SCK) signal is an output from the master device and an input to slave devices. It is used to synchronize the transfer of data between the master and slave on the MOSI and MISO lines. SPIn generates this signal when operating as a master. The SCK signal is ignored by a SPI slave when the slave is not selected (NSS = 1) in 4-wire slave mode.
+24.1.4.	Slave Select (NSS)
+The function of the slave-select (NSS) signal is dependent on the setting of the NSSnMD1 and NSSnMD0 bits in the SPInCN register. There are three possible modes that can be selected with these bits:
+	1.	NSSMD[1:0] = 00: 3-Wire Master or 3-Wire Slave Mode: SPIn operates in 3-wire mode, and NSS is disabled. When operating as a slave device, SPIn is always selected in 3-wire mode. Since no select signal is present, SPIn must be the only slave on the bus in 3-wire mode. This is intended for point-to-point communication between a master and one slave.
+	2.	NSSMD[1:0] = 01: 4-Wire Slave or Multi-Master Mode: SPIn operates in 4-wire mode, and NSS is enabled as an input. When operating as a slave, NSS selects the SPIn device. When operating as a master, a 1-to-0 transition of the NSS signal disables the master function of SPIn so that multiple master devices can be used on the same SPI bus.
+	3.	NSSMD[1:0] = 1x: 4-Wire Master Mode: SPIn operates in 4-wire mode, and NSS is enabled as an output. The setting of NSSMD0 determines what logic level the NSS pin will output. This configuration should only be used when operating SPIn as a master device.
+
+See Figure 24.2, Figure 24.3, and Figure 24.4 for typical connection diagrams of the various operational modes. Note that the setting of NSSMD bits affects the pinout of the device. When in 3-wire master or 3-wire slave mode, the NSS pin will not be mapped by the crossbar. In all other modes, the NSS signal will be mapped to a pin on the device. See Section “21. Port Input/Output” on page 216 for general purpose port I/O and crossbar information.
+24.2.	SPI Master Mode Operation
+A SPI master device initiates all data transfers on a SPI bus. SPIn is placed in master mode by setting the Master Enable flag (MSTENn, SPInCN.6). Writing a byte of data to the SPIn data register (SPInDAT) when in master mode writes to the transmit buffer. If the SPI shift register is empty, the byte in the transmit buffer is moved to the shift register, and a data transfer begins. The SPIn master immediately shifts out the data serially on the MOSI line while providing the serial clock on SCK. The SPIFn (SPInCN.7) flag is set to logic 1 at the end of the transfer. If interrupts are enabled, an interrupt request is generated when the SPIF flag is set. While the SPIn master transfers data to a slave on the MOSI line, the addressed SPI slave device simultaneously transfers the contents of its shift register to the SPI master on the MISO line in a full-duplex operation. Therefore, the SPIF flag serves as both a transmit-complete and receive-data-ready flag. The data byte received from the slave is transferred MSB-first into the master's shift register. When a byte is fully shifted into the register, it is moved to the receive buffer where it can be read by the processor by reading SPInDAT. 
+When configured as a master, SPIn can operate in one of three different modes: multi-master mode, 3-wire single-master mode, and 4-wire single-master mode. The default, multi-master mode is active when NSSnMD1 (SPInCN.3) = 0 and NSSnMD0 (SPInCN.2) = 1. In this mode, NSS is an input to the device, and is used to disable the master SPIn when another master is accessing the bus. When NSS is pulled low in this mode, MSTENn (SPInCN.6) and SPIENn (SPInCN.0) are set to 0 to disable the SPI master device, and a Mode Fault is generated (MODFn, SPInCN.5 = 1). Mode Fault will generate an interrupt if enabled. SPIn must be manually re-enabled in software under these circumstances. In multi-master systems, devices will typically default to being slave devices while they are not acting as the system master device. In multi-master mode, slave devices can be addressed individually (if needed) using general-purpose I/O pins. Figure 24.2 shows a connection diagram between two master devices in multiple-master mode.
+3-wire single-master mode is active when NSSnMD1 (SPInCN.3) = 0 and NSSnMD0 (SPInCN.2) = 0. In this mode, NSS is not used, and is not mapped to an external port pin through the crossbar. Any slave devices that must be addressed in this mode should be selected using general-purpose I/O pins. Figure 24.3 shows a connection diagram between a master device in 3-wire master mode and a slave device.
+4-wire single-master mode is active when NSSnMD1 (SPInCN.3) = 1. In this mode, NSS is configured as an output pin, and can be used as a slave-select signal for a single SPI device. In this mode, the output value of NSS is controlled (in software) with the bit NSSnMD0 (SPInCN.2). Additional slave devices can be addressed using general-purpose I/O pins. Figure 24.4 shows a connection diagram for a master device in 4-wire master mode and two slave devices.
 
 Figure 24.2. Multiple-Master Mode Connection Diagram
 
 Figure 24.3. 3-Wire Single Master and 3-Wire Single Slave Mode Connection Diagram
 
 Figure 24.4. 4-Wire Single Master Mode and 4-Wire Slave Mode Connection Diagram
-24.3. 	 SPI0 Slave Mode Operation
-When SPI0 is enabled and not configured as a master, it will operate as a SPI slave. As a slave, bytes are shifted in through the MOSI pin and out through the MISO pin by a master device controlling the SCK signal. A bit counter in the SPI0 logic counts SCK edges. When 8 bits have been shifted through the shift register, the SPIF flag is set to logic 1, and the byte is copied into the receive buffer. Data is read from the receive buffer by reading SPI0DAT. A slave device cannot initiate transfers. Data to be transferred to the master device is pre-loaded into the shift register by writing to SPI0DAT. Writes to SPI0DAT are double-buffered, and are placed in the transmit buffer first. If the shift register is empty, the contents of the transmit buffer will immediately be transferred into the shift register. When the shift register already contains data, the SPI will load the shift register with the transmit buffer’s contents after the last SCK edge of the next (or current) SPI transfer.
-When configured as a slave, SPI0 can be configured for 4-wire or 3-wire operation. The default, 4-wire slave mode, is active when NSSMD1 (SPI0CN.3) = 0 and NSSMD0 (SPI0CN.2) = 1. In 4-wire mode, the NSS signal is routed to a port pin and configured as a digital input. SPI0 is enabled when NSS is logic 0, and disabled when NSS is logic 1. The bit counter is reset on a falling edge of NSS. Note that the NSS signal must be driven low at least 2 system clocks before the first active edge of SCK for each byte transfer. Figure 24.4 shows a connection diagram between two slave devices in 4-wire slave mode and a master device.
-3-wire slave mode is active when NSSMD1 (SPI0CN.3) = 0 and NSSMD0 (SPI0CN.2) = 0. NSS is not used in this mode, and is not mapped to an external port pin through the crossbar. Since there is no way of uniquely addressing the device in 3-wire slave mode, SPI0 must be the only slave device present on the bus. It is important to note that in 3-wire slave mode there is no external means of resetting the bit counter that determines when a full byte has been received. The bit counter can only be reset by disabling and re-enabling SPI0 with the SPIEN bit. Figure 24.3 shows a connection diagram between a slave device in 3-wire slave mode and a master device.
-24.4. 	 SPI0 Interrupt Sources
-When SPI0 interrupts are enabled, the following four flags will generate an interrupt when they are set to logic 1:
+24.3.	SPI Slave Mode Operation
+When SPIn is enabled and not configured as a master, it will operate as a SPI slave. As a slave, bytes are shifted in through the MOSI pin and out through the MISO pin by a master device controlling the SCK signal. A bit counter in the SPIn logic counts SCK edges. When 8 bits have been shifted through the shift register, the SPIF flag is set to logic 1, and the byte is copied into the receive buffer. Data is read from the receive buffer by reading SPInDAT. A slave device cannot initiate transfers. Data to be transferred to the master device is pre-loaded into the shift register by writing to SPInDAT. Writes to SPInDAT are double-buffered, and are placed in the transmit buffer first. If the shift register is empty, the contents of the transmit buffer will immediately be transferred into the shift register. When the shift register already contains data, the SPI will load the shift register with the transmit buffer’s contents after the last SCK edge of the next (or current) SPI transfer.
+When configured as a slave, SPIn can be configured for 4-wire or 3-wire operation. The default, 4-wire slave mode, is active when NSSnMD1 (SPInCN.3) = 0 and NSSnMD0 (SPInCN.2) = 1. In 4-wire mode, the NSS signal is routed to a port pin and configured as a digital input. SPIn is enabled when NSS is logic 0, and disabled when NSS is logic 1. The bit counter is reset on a falling edge of NSS. Note that the NSS signal must be driven low at least 2 system clocks before the first active edge of SCK for each byte transfer. Figure 24.4 shows a connection diagram between two slave devices in 4-wire slave mode and a master device.
+3-wire slave mode is active when NSSnMD1 (SPInCN.3) = 0 and NSSnMD0 (SPInCN.2) = 0. NSS is not used in this mode, and is not mapped to an external port pin through the crossbar. Since there is no way of uniquely addressing the device in 3-wire slave mode, SPIn must be the only slave device present on the bus. It is important to note that in 3-wire slave mode there is no external means of resetting the bit counter that determines when a full byte has been received. The bit counter can only be reset by disabling and re-enabling SPIn with the SPIEN bit. Figure 24.3 shows a connection diagram between a slave device in 3-wire slave mode and a master device.
+24.4.	SPI Interrupt Sources
+When SPIn interrupts are enabled, the following four flags will generate an interrupt when they are set to logic 1:
 All of the following bits must be cleared by software.
-1.	The SPI Interrupt Flag, SPIF (SPI0CN.7) is set to logic 1 at the end of each byte transfer. This flag can occur in all SPI0 modes.
-2.	The Write Collision Flag, WCOL (SPI0CN.6) is set to logic 1 if a write to SPI0DAT is attempted when the transmit buffer has not been emptied to the SPI shift register. When this occurs, the write to SPI0DAT will be ignored, and the transmit buffer will not be written.This flag can occur in all SPI0 modes.
-3.	The Mode Fault Flag MODF (SPI0CN.5) is set to logic 1 when SPI0 is configured as a master, and for multi-master mode and the NSS pin is pulled low. When a Mode Fault occurs, the MSTEN and SPIEN bits in SPI0CN are set to logic 0 to disable SPI0 and allow another master device to access the bus.
-4.	The Receive Overrun Flag RXOVRN (SPI0CN.4) is set to logic 1 when configured as a slave, and a transfer is completed and the receive buffer still holds an unread byte from a previous transfer. The new byte is not transferred to the receive buffer, allowing the previously received data byte to be read. The data byte which caused the overrun is lost.
-24.5. 	 Serial Clock Phase and Polarity
-Four combinations of serial clock phase and polarity can be selected using the clock control bits in the SPI0 Configuration Register (SPI0CFG). The CKPHA bit (SPI0CFG.5) selects one of two clock phases (edge used to latch the data). The CKPOL bit (SPI0CFG.4) selects between an active-high or active-low clock. Both master and slave devices must be configured to use the same clock phase and polarity. SPI0 should be disabled (by clearing the SPIEN bit, SPI0CN.0) when changing the clock phase or polarity. The clock and data line relationships for master mode are shown in Figure 24.5. For slave mode, the clock and data relationships are shown in Figure 24.6 and Figure 24.7. CKPHA must be set to 0 on both the master and slave SPI when communicating between two of the following devices: C8051F04x, C8051F06x, C8051F12x, C8051F31x, C8051F32x, and C8051F33x.
-The SPI0 Clock Rate Register (SPI0CKR) as shown in SFR Definition 24.3 controls the master mode serial clock frequency. This register is ignored when operating in slave mode. When the SPI is configured as a master, the maximum data transfer rate (bits/sec) is one-half the system clock frequency or 12.5 MHz, whichever is slower. When the SPI is configured as a slave, the maximum data transfer rate (bits/sec) for full-duplex operation is 1/10 the system clock frequency, provided that the master issues SCK, NSS (in 4-wire slave mode), and the serial input data synchronously with the slave’s system clock. If the master issues SCK, NSS, and the serial input data asynchronously, the maximum data transfer rate (bits/sec) must be less than 1/10 the system clock frequency. In the special case where the master only wants to transmit data to the slave and does not need to receive data from the slave (i.e. half-duplex operation), the SPI slave can receive data at a maximum data transfer rate (bits/sec) of 1/4 the system clock frequency. This is provided that the master issues SCK, NSS, and the serial input data synchronously with the slave’s system clock.
+	1.	The SPI Interrupt Flag, SPIFn (SPInCN.7) is set to logic 1 at the end of each byte transfer. This flag can occur in all SPIn modes.
+	2.	The Write Collision Flag, WCOLn (SPInCN.6) is set to logic 1 if a write to SPInDAT is attempted when the transmit buffer has not been emptied to the SPI shift register. When this occurs, the write to SPInDAT will be ignored, and the transmit buffer will not be written.This flag can occur in all SPIn modes.
+	3.	The Mode Fault Flag MODFn (SPInCN.5) is set to logic 1 when SPIn is configured as a master, and for multi-master mode and the NSS pin is pulled low. When a Mode Fault occurs, the MSTENn and SPIENn bits in SPI0CN are set to logic 0 to disable SPIn and allow another master device to access the bus.
+	4.	The Receive Overrun Flag RXOVRNn (SPInCN.4) is set to logic 1 when configured as a slave, and a transfer is completed and the receive buffer still holds an unread byte from a previous transfer. The new byte is not transferred to the receive buffer, allowing the previously received data byte to be read. The data byte which caused the overrun is lost.
+
+24.5.	Serial Clock Phase and Polarity
+Four combinations of serial clock phase and polarity can be selected using the clock control bits in the SPI Configuration Register (SPInCFG). The CKPHA bit (SPInCFG.5) selects one of two clock phases (edge used to latch the data). The CKPOL bit (SPInCFG.4) selects between an active-high or active-low clock. Both master and slave devices must be configured to use the same clock phase and polarity. SPI0 should be disabled (by clearing the SPIENn bit, SPInCN.0) when changing the clock phase or polarity. The clock and data line relationships for master mode are shown in Figure 24.5. For slave mode, the clock and data relationships are shown in Figure 24.6 and Figure 24.7. Note that CKPHA must be set to 0 on both the master and slave SPI when communicating between two of the following devices: C8051F04x, C8051F06x, C8051F12x, C8051F31x, C8051F32x, and C8051F33x.
+The SPIn Clock Rate Register (SPInCKR) as shown in SFR Definition 24.3 controls the master mode serial clock frequency. This register is ignored when operating in slave mode. When the SPI is configured as a master, the maximum data transfer rate (bits/sec) is one-half the system clock frequency or 12.5 MHz, whichever is slower. When the SPI is configured as a slave, the maximum data transfer rate (bits/sec) for full-duplex operation is 1/10 the system clock frequency, provided that the master issues SCK, NSS (in 4-wire slave mode), and the serial input data synchronously with the slave’s system clock. If the master issues SCK, NSS, and the serial input data asynchronously, the maximum data transfer rate (bits/sec) must be less than 1/10 the system clock frequency. In the special case where the master only wants to transmit data to the slave and does not need to receive data from the slave (i.e. half-duplex operation), the SPI slave can receive data at a maximum data transfer rate (bits/sec) of 1/4 the system clock frequency. This is provided that the master issues SCK, NSS, and the serial input data synchronously with the slave’s system clock.
 
 Figure 24.5. Master Mode Data/Clock Timing
 
 Figure 24.6. Slave Mode Data/Clock Timing (CKPHA = 0)
 
 Figure 24.7. Slave Mode Data/Clock Timing (CKPHA = 1)
-24.6. 	 SPI Special Function Registers
-SPI0 is accessed and controlled through four special function registers in the system controller: SPI0CN Control Register, SPI0DAT Data Register, SPI0CFG Configuration Register, and SPI0CKR Clock Rate Register. The four special function registers related to the operation of the SPI0 Bus are described in the following figures.
+24.6.	SPI Special Function Registers
+SPI0 and SPI1 are accessed and controlled through four special function registers (8 registers total) in the system controller: SPInCN Control Register, SPInDAT Data Register, SPInCFG Configuration Register, and SPInCKR Clock Rate Register. The special function registers related to the operation of the SPI0 and SPI1 Bus are described in the following figures.
 
-SFR Definition 24.1. SPI0CFG: SPI0 Configuration
+SFR Definition 24.1. SPInCFG: SPI Configuration
 Bit	7	6	5	4	3	2	1	0
 Name	SPIBSY	MSTEN	CKPHA	CKPOL	SLVSEL	NSSIN	SRMT	RXBMT
 Type	R	R/W	R/W	R/W	R	R	R	R
 Reset	0	0	0	0	0	1	1	1
 
-SFR Address = 0xA1; SFR Page = 0x00
+SFR Addresses: SPI0CFG = 0xA1, SPI1CFG = 0x84 
+SFR Pages: SPI0CFG = 0x0, SPI1CFG = 0x0 
 Bit	Name	Function		
 7	SPIBSY	SPI Busy.
 This bit is set to logic 1 when a SPI transfer is in progress (master or slave mode).		
 6	MSTEN	Master Mode Enable. 
 0: Disable master mode. Operate in slave mode.
 1: Enable master mode. Operate as a master.		
-5	CKPHA	SPI0 Clock Phase.
+5	CKPHA	SPI Clock Phase.
 0: Data centered on first edge of SCK period.*
 1: Data centered on second edge of SCK period.*		
-4	CKPOL	SPI0 Clock Polarity. 
+4	CKPOL	SPI Clock Polarity. 
 0: SCK line low in idle state.
 1: SCK line high in idle state.		
 3	SLVSEL	Slave Selected Flag. 
-This bit is set to logic 1 whenever the NSS pin is low indicating SPI0 is the selected slave. It is cleared to logic 0 when NSS is high (slave not selected). This bit does not indicate the instantaneous value at the NSS pin, but rather a de-glitched version of the pin input.		
+Set to logic 1 whenever the NSS pin is low indicating SPI0 is the selected slave. It is cleared to logic 0 when NSS is high (slave not selected). This bit does not indicate the instantaneous value at the NSS pin, but rather a de-glitched version of the pin input.		
 2	NSSIN	NSS Instantaneous Pin Input. 
 This bit mimics the instantaneous value that is present on the NSS port pin at the time that the register is read. This input is not de-glitched.		
 1	SRMT	Shift Register Empty (valid in slave mode only).
-This bit will be set to logic 1 when all data has been transferred in/out of the shift register, and there is no new information available to read from the transmit buffer or write to the receive buffer. It returns to logic 0 when a data byte is transferred to the shift register from the transmit buffer or by a transition on SCK. SRMT = 1 when in Master Mode.		
+Set to logic 1 when data has been transferred in/out of the shift register, and there is no data is available to read from the transmit buffer or write to the receive buffer. 
+Set to logic 0 when a data byte is transferred to the shift register from the transmit buffer or by a transition on SCK. Note: SRMT = 1 in Master Mode.		
 0	RXBMT	Receive Buffer Empty (valid in slave mode only).
-This bit will be set to logic 1 when the receive buffer has been read and contains no new information. If there is new information available in the receive buffer that has not been read, this bit will return to logic 0. RXBMT = 1 when in Master Mode.		
-Note:	In slave mode, data on MOSI is sampled in the center of each data bit. In master mode, data on MISO is sampled one SYSCLK before the end of each data bit, to provide maximum settling time for the slave device. See Table 24.1 for timing parameters.				
+Set to logic 1 when the receive buffer has been read and contains no new information. If there is new information available in the receive buffer that has not been read, this bit will return to logic 0. Note: RXBMT = 1 in Master Mode.		
+*Note:	 In slave mode, data on MOSI is sampled in the center of each data bit. In master mode, data on MISO is sampled one SYSCLK before the end of each data bit, to provide maximum settling time for the slave device. See Table 24.1 for timing parameters.				
 
 
-SFR Definition 24.2. SPI0CN: SPI0 Control
+SFR Definition 24.2. SPInCN: SPI Control
 Bit	7	6	5	4	3	2	1	0
-Name	SPIF	WCOL	MODF	RXOVRN	NSSMD[1:0]		TXBMT	SPIEN
-Type	R/W	R/W	R/W	R/W	R/W		R	R/W
+Name	SPIFn	WCOLn	MODFn	RXOVRNn	NSSnMD1	NSSnMD0	TXBMTn	SPInEN
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R	R/W
 Reset	0	0	0	0	0	1	1	0
 
-SFR Address = 0xF8; Bit-Addressable; SFR Page = 0x00
+SFR Addresses: SPI0CN = 0xF8, Bit-Addressable; SPI1CN = 0xB0, Bit-Addressable
+SFR Pages: SPI0CN = 0x0, SPI1CN = 0x0
 Bit	Name	Function		
-7	SPIF	SPI0 Interrupt Flag.
-This bit is set to logic 1 by hardware at the end of a data transfer. If interrupts are enabled, setting this bit causes the CPU to vector to the SPI0 interrupt service routine. This bit is not automatically cleared by hardware. It must be cleared by software.		
-6	WCOL	Write Collision Flag. 
+7	SPIFn	SPIn Interrupt Flag.
+This bit is set to logic 1 by hardware at the end of a data transfer. If interrupts are enabled, setting this bit causes the CPU to vector to the SPIn interrupt service routine. This bit is not automatically cleared by hardware. It must be cleared by software.		
+6	WCOLn	Write Collision Flag. 
 This bit is set to logic 1 by hardware (and generates a SPI0 interrupt) to indicate a write to the SPI0 data register was attempted while a data transfer was in progress. It must be cleared by software.		
-5	MODF	Mode Fault Flag.
+5	MODFn	Mode Fault Flag.
 This bit is set to logic 1 by hardware (and generates a SPI0 interrupt) when a master mode collision is detected (NSS is low, MSTEN = 1, and NSSMD[1:0] = 01). This bit is not automatically cleared by hardware. It must be cleared by software.		
-4	RXOVRN	Receive Overrun Flag (valid in slave mode only).
-This bit is set to logic 1 by hardware (and generates a SPI0 interrupt) when the receive buffer still holds unread data from a previous transfer and the last bit of the current transfer is shifted into the SPI0 shift register. This bit is not automatically cleared by hardware. It must be cleared by software.		
-3:2	NSSMD[1:0]	Slave Select Mode.
+4	RXOVRNn	Receive Overrun Flag (valid in slave mode only).
+This bit is set to logic 1 by hardware (and generates a SPIn interrupt) when the receive buffer still holds unread data from a previous transfer and the last bit of the current transfer is shifted into the SPI shift register. This bit is not automatically cleared by hardware. It must be cleared by software.		
+3:2	NSSnMD[1:0]	Slave Select Mode.
 Selects between the following NSS operation modes: 
 (See Section 24.2 and Section 24.3).
 00: 3-Wire Slave or 3-Wire Master Mode. NSS signal is not routed to a port pin.
 01: 4-Wire Slave or Multi-Master Mode (Default). NSS is an input to the device.
 1x: 4-Wire Single-Master Mode. NSS signal is mapped as an output from the device and will assume the value of NSSMD0.		
-1	TXBMT	Transmit Buffer Empty.
+1	TXBMTn	Transmit Buffer Empty.
 This bit will be set to logic 0 when new data has been written to the transmit buffer. When data in the transmit buffer is transferred to the SPI shift register, this bit will be set to logic 1, indicating that it is safe to write a new byte to the transmit buffer.		
-0	SPIEN	SPI0 Enable. 
-0: SPI disabled.
-1: SPI enabled.		
+0	SPInEN	SPIn Enable. 
+0: SPIn disabled.
+1: SPIn enabled.		
 
 
-SFR Definition 24.3. SPI0CKR: SPI0 Clock Rate
+SFR Definition 24.3. SPInCKR: SPI Clock Rate
 Bit	7	6	5	4	3	2	1	0
-Name	SCR[7:0]							
+Name	SCRn[7:0]							
 Type	R/W							
 Reset	0	0	0	0	0	0	0	0
 
-SFR Address = 0xA2; SFR Page = 0x00
+SFR Addresses: SPI0CKR = 0xA2, SPI1CKR = 0x85 
+SFR Pages: SPI0CKR = 0x0, SPI1CKR = 0x0
 Bit	Name	Function		
-7:0	SCR[7:0]	SPI0 Clock Rate.
-These bits determine the frequency of the SCK output when the SPI0 module is configured for master mode operation. The SCK clock frequency is a divided version of the system clock, and is given in the following equation, where SYSCLK is the system clock frequency and SPI0CKR is the 8-bit value held in the SPI0CKR register.
+7:0	SCRn	SPI Clock Rate.
+These bits determine the frequency of the SCK output when the SPI module is configured for master mode operation. The SCK clock frequency is a divided version of the system clock, and is given in the following equation, where SYSCLK is the system clock frequency and SPInCKR is the 8-bit value held in the SPInCKR register.
 for 0 <= SPI0CKR <= 255
 
-Example: If SYSCLK = 2 MHz and SPI0CKR = 0x04, 		
+Example: If SYSCLK = 2 MHz and SPInCKR = 0x04, 		
 
 
-SFR Definition 24.4. SPI0DAT: SPI0 Data
+SFR Definition 24.4. SPInDAT: SPI Data
 Bit	7	6	5	4	3	2	1	0
-Name	SPI0DAT[7:0]							
+Name	SPInDAT[7:0]							
 Type	R/W							
 Reset	0	0	0	0	0	0	0	0
 
-SFR Address = 0xA3; SFR Page = 0x00
+SFR Addresses: SPI0DAT = 0xA3, SPI1DAT = 0x86 
+SFR Pages: SPI0DAT = 0x0, SPI1DAT = 0x0
 Bit	Name	Function		
-7:0	SPI0DAT[7:0]	SPI0 Transmit and Receive Data.
-The SPI0DAT register is used to transmit and receive SPI0 data. Writing data to SPI0DAT places the data into the transmit buffer and initiates a transfer when in Master Mode. A read of SPI0DAT returns the contents of the receive buffer.		
+7:0	SPInDAT	SPIn Transmit and Receive Data.
+The SPInDAT register is used to transmit and receive SPIn data. Writing data to SPInDAT places the data into the transmit buffer and initiates a transfer when in Master Mode. A read of SPInDAT returns the contents of the receive buffer.		
 
 
 Figure 24.8. SPI Master Timing (CKPHA = 0)
