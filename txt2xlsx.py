@@ -24,7 +24,7 @@ class ParseTxt:
             line = f.readline()
             if len(line) == 0:
                 break;
-            if line.startswith("SFR Definition"):
+            if (line.startswith("SFR Definition") or line.startswith("Internal Register Definition")):
                 (offset,row) = self.parse_reg_tbl(line,offset,row)
         f.close()
 #        for i in range(len(reg_data)):
@@ -33,8 +33,9 @@ class ParseTxt:
     def parse_reg_tbl(self,line,offset,row):
         while True:
             # Register definition row. EX: SFR Definition 24.2. SPI0CN: SPI0 Control
-            if line.startswith("SFR Definition"):
+            if (line.startswith("SFR Definition") or line.startswith("Internal Register Definition")):
                 t = line.split(':')
+                print(t)
                 tmp = ['',t[0].split()[-1], hex(offset),'','','','','','','',t[1].strip(),'',row]
                 offset += 1
                 row += 1
@@ -49,24 +50,22 @@ class ParseTxt:
                         bit_rw[i] = 'RW'
                     if bit_rw[i] == '':
                         bit_rw[i] = bit_rw[i-1]
-#                print(bit_rw)
             # Bit field value. EX: Reset 0	0	0	0	0	1	1	0
             if line.startswith('Reset	'):
                 bit_rst = line.split('\t')
                 del(bit_rst[0])
                 bit_rst[-1] = bit_rst[-1].strip()
-#                print(bit_rst)
                 
-#                        tmp = ['','','','','','','','','','','','',row]
             # register description
             # EX: Bit	Name	Function		
-            if line.startswith('Bit	Name	Function'):
+            if line.startswith('Bit	Name	Function') or line.startswith('Bit	Name	Description'):
                 idx = 0 # bit index
                 start_row = row
                 description_row = row
                 while True:
                     line = f.readline()
                     t = line.split('\t')
+#                    print(t)
                     # EX: 7	SPIF	SPI0 Interrupt Flag.
                     if (len(t[0]) == 1) and (t[0].isnumeric()) :# 7->
                         tmp = ['','','',t[0],t[1],bit_rw[idx],bit_rst[idx],'','','',t[2].strip(),'',row]
@@ -90,7 +89,8 @@ class ParseTxt:
                             bit_num -= 1
                             if bit_num < int(t[0][2]):
                                 description_row = row - 1
-                                reg_data[description_row - 2][11] = short_name
+#                                print(short_name)
+                                reg_data[description_row - 2][10] = short_name
                                 break
                     else:
                         t = line.split(':')
@@ -161,7 +161,7 @@ class WriteXlsx:
         ws0.title = 'Version'
         self.fill_sheet0(dest_filename.split('.')[0])
         ws = wb.create_sheet()
-        ws.title = "Base_alias"
+        ws.title = "Base_Alias"
         ws._freeze_panes = 'A2'
         self.write_regs(reg)
         wb.save(filename = dest_filename)
