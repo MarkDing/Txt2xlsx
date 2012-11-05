@@ -1,0 +1,120 @@
+﻿14.	Power Management
+C8051F93x-C8051F92x devices support 5 power modes: Normal, Idle, Stop, Suspend, and Sleep. The power management unit (PMU0) allows the device to enter and wake-up from the available power modes. A brief description of each power mode is provided in Table 14.1. Detailed descriptions of each mode can be found in the following sections.
+
+Table 14.1. Power Modes
+Power Mode	Description	Wake-Up Sources	Power Savings
+Normal	Device fully functional	N/A	Excellent MIPS/mW
+Idle	All peripherals fully functional.
+Very easy to wake up.	Any Interrupt.	Good
+No Code Execution
+Stop	Legacy 8051 low power mode. 
+A reset is required to wake up.	Any Reset.	Good
+No Code Execution
+Precision Oscillator Disabled
+Suspend	Similar to Stop Mode, but very fast wake-up time and code resumes execution at the next instruction. 	SmaRTClock,
+Port Match, Comparator0,
+RST pin.	Very Good
+No Code Execution
+All Internal Oscillators Disabled
+System Clock Gated
+Sleep	Ultra Low Power and flexible wake-up sources. Code resumes execution at the next instruction. Comparator0 only functional in two-cell mode.	SmaRTClock,
+Port Match, Comparator0,
+RST pin.	Excellent
+Power Supply Gated
+All Oscillators except SmaRTClock Disabled
+
+In battery powered systems, the system should spend as much time as possible in sleep mode in order to preserve battery life. When a task with a fixed number of clock cycles needs to be performed, the device should switch to normal mode, finish the task as quickly as possible, and return to sleep mode. Idle mode and suspend modes provide a very fast wake-up time; however, the power savings in these modes will not be as much as in sleep Mode. Stop Mode is included for legacy reasons; the system will be more power efficient and easier to wake up when idle, suspend, or sleep mode are used.
+Although switching power modes is an integral part of power management, enabling/disabling individual peripherals as needed will help lower power consumption in all power modes. Each analog peripheral can be disabled when not in use or placed in a low power mode. Digital peripherals such as timers or serial busses draw little power whenever they are not in use. Digital peripherals draw no power in Sleep Mode.
+14.1.	Normal Mode
+The MCU is fully functional in Normal Mode. Figure 14.1 shows the on-chip power distribution to various peripherals. There are three supply voltages powering various sections of the chip: VBAT, VDD/DC+, and the 1.8 V internal core supply. VREG0, PMU0 and the SmaRTClock are always powered directly from the VBAT pin. All analog peripherals are directly powered from the VDD/DC+ pin, which is an output in one-cell mode and an input in two-cell mode. All digital peripherals and the CIP-51 core are powered from the 1.8 V internal core supply. The RAM is also powered from the core supply in Normal mode.
+
+Figure 14.1. C8051F93x-C8051F92x Power Distribution
+14.2.	Idle Mode
+Setting the Idle Mode Select bit (PCON.0) causes the CIP-51 to halt the CPU and enter Idle mode as soon as the instruction that sets the bit completes execution. All internal registers and memory maintain their original data. All analog and digital peripherals can remain active during Idle mode.
+Note:	To ensure the MCU enters a low power state upon entry into Idle Mode, the one-shot circuit should be enabled by clearing the BYPASS bit (FLSCL.6) to logic 0. See the note in SFR Definition 13.3. FLSCL: Flash Scale for more information on how to properly clear the BYPASS bit.
+Idle mode is terminated when an enabled interrupt is asserted or a reset occurs. The assertion of an enabled interrupt will cause the Idle Mode Selection bit (PCON.0) to be cleared and the CPU to resume operation. The pending interrupt will be serviced and the next instruction to be executed after the return from interrupt (RETI) will be the instruction immediately following the one that set the Idle Mode Select bit. If Idle mode is terminated by an internal or external reset, the CIP-51 performs a normal reset sequence and begins program execution at address 0x0000.
+If enabled, the Watchdog Timer (WDT) will eventually cause an internal watchdog reset and thereby terminate the Idle mode. This feature protects the system from an unintended permanent shutdown in the event of an inadvertent write to the PCON register. If this behavior is not desired, the WDT may be disabled by software prior to entering the idle mode if the WDT was initially configured to allow this operation. This provides the opportunity for additional power savings, allowing the system to remain in the Idle mode indefinitely, waiting for an external stimulus to wake up the system. Refer to Section “18.6. PCA Watchdog Timer Reset” on page 188 for more information on the use and configuration of the WDT.
+14.3.	Stop Mode
+Setting the Stop Mode Select bit (PCON.1) causes the CIP-51 to enter Stop mode as soon as the instruction that sets the bit completes execution. In Stop mode the precision internal oscillator and CPU are stopped; the state of the low power oscillator and the external oscillator circuit is not affected. Each analog peripheral (including the external oscillator circuit) may be shut down individually prior to entering Stop Mode. Stop mode can only be terminated by an internal or external reset. On reset, the CIP-51 performs the normal reset sequence and begins program execution at address 0x0000. 
+If enabled, the Missing Clock Detector will cause an internal reset and thereby terminate the Stop mode. The Missing Clock Detector should be disabled if the CPU is to be put to in STOP mode for longer than the MCD timeout of 100 µs.
+Stop Mode is a legacy 8051 power mode; it will not result in optimal power savings. Sleep or Suspend mode will provide more power savings if the MCU needs to be inactive for a long period of time.
+On C8051F930, C8051F931, C8051F920, and C8051F921 devices, the Precision Oscillator Bias is not automatically disabled and should be disabled by software to achieve the lowest possible Stop mode current. 
+Note:	To ensure the MCU enters a low power state upon entry into Stop Mode, the one-shot circuit should be enabled by clearing the BYPASS bit (FLSCL.6) to logic 0. See the note in SFR Definition 13.3. FLSCL: Flash Scale for more information on how to properly clear the BYPASS bit.
+14.4.	Suspend Mode
+Setting the Suspend Mode Select bit (PMU0CF.6) causes the system clock to be gated off and all internal oscillators disabled. All digital logic (timers, communication peripherals, interrupts, CPU, etc.) stops functioning until one of the enabled wake-up sources occurs.
+Important Notes: 
+•	When entering Suspend Mode, the global clock divider must be set to "divide by 1" by setting CLKDIV[2:0] = 000b in the CLKSEL register.
+•	The one-shot circuit should be enabled by clearing the BYPASS bit (FLSCL.6) to logic 0. See the note in SFR Definition 13.3. FLSCL: Flash Scale for more information on how to properly clear the BYPASS bit.
+•	Upon wake-up from suspend mode, PMU0 requires two system clocks in order to update the PMU0CF wake-up flags. All flags will read back a value of '0' during the first two system clocks following a wake-up from suspend mode.
+The following wake-up sources can be configured to wake the device from Suspend Mode:
+•	SmaRTClock Oscillator Fail
+•	SmaRTClock Alarm
+•	Port Match Event
+•	Comparator0 Rising Edge
+In addition, a noise glitch on RST that is not long enough to reset the device will cause the device to exit suspend. In order for the MCU to respond to the pin reset event, software must not place the device back into suspend mode for a period of 15 µs. The PMU0CF register may be checked to determine if the wake-up was due to a falling edge on the /RST pin. If the wake-up source is not due to a falling edge on RST, there is no time restriction on how soon software may place the device back into suspend mode. A 4.7 kW pullup resistor to VDD/DC+ is recommend for RST to prevent noise glitches from waking the device.
+14.5.	Sleep Mode
+Setting the Sleep Mode Select bit (PMU0CF.6) turns off the internal 1.8 V regulator (VREG0) and switches the power supply of all on-chip RAM to the VBAT pin (see Figure 14.1). Power to most digital logic on the chip is disconnected; only PMU0 and the SmaRTClock remain powered. Analog peripherals remain powered in two-cell mode and lose their supply in one-cell mode because the dc-dc converter is disabled. In two-cell mode, only the Comparators remain functional when the device enters Sleep Mode. All other analog peripherals (ADC0, IREF0, External Oscillator, etc.) should be disabled prior to entering Sleep Mode.
+Important Notes: 
+•	When entering Sleep Mode, the global clock divider must be set to "divide by 1" by setting CLKDIV[2:0] = 000b in the CLKSEL register. 
+•	Per device errata, for Revision D and prior silicon, the CLKSEL register must select “low power oscillator divided by 2” as the system clock source and wait for CLKRDY to be set prior to entering Sleep Mode. 
+GPIO pins configured as digital outputs will retain their output state during sleep mode. In two-cell mode, they will maintain the same current drive capability in sleep mode as they have in normal mode. In one-cell mode, the VDD/DC+ supply will drop to the level of VBAT, which will reduce the output high-voltage level and the source and sink current drive capability. 
+GPIO pins configured as digital inputs can be used during sleep mode as wakeup sources using the port match feature. In two-cell mode, they will maintain the same input level specs in sleep mode as they have in normal mode. In one-cell mode, the VDD supply will drop to the level of VBAT, which will lower the switching threshold and increase the propagation delay. 
+Note:	By default, the VDD/DC+ supply is connected to VBAT upon entry into Sleep Mode (one-cell mode). If the VDDSLP bit (DC0CF.1) is set to logic 1, the VDD/DC+ supply will float in Sleep Mode. This allows the decoupling capacitance on the VDD/DC+ supply to maintain the supply rail until the capacitors are discharged. For relatively short sleep intervals, this can result in substantial power savings because the decoupling capacitance is not continuously charged and discharged.
+RAM and SFR register contents are preserved in Sleep mode as long as the voltage on VBAT does not fall below VPOR. The PC counter and all other volatile state information is preserved allowing the device to resume code execution upon waking up from Sleep mode. The following wake-up sources can be configured to wake the device from Sleep mode:
+
+•	SmaRTClock Oscillator Fail
+•	SmaRTClock Alarm
+•	Port Match Event
+•	Comparator0 Rising Edge.
+The Comparator0 Rising Edge wakeup is only valid in two-cell mode. The comparator requires a supply voltage of at least 1.8 V to operate properly.
+In addition, any falling edge on RST (due to a pin reset or a noise glitch) will cause the device to exit sleep mode. In order for the MCU to respond to the pin reset event, software must not place the device back into sleep mode for a period of 15 µs. The PMU0CF register may be checked to determine if the wake-up was due to a falling edge on the RST pin. If the wake-up source is not due to a falling edge on RST, there is no time restriction on how soon software may place the device back into sleep mode. A 4.7 kW pullup resistor to VDD/DC+ is recommend for RST to prevent noise glitches from waking the device.
+14.6.	Configuring Wakeup Sources
+Before placing the device in a low power mode, one or more wakeup sources should be enabled so that the device does not remain in the low power mode indefinitely. For idle mode, this includes enabling any interrupt. For stop mode, this includes enabling any reset source or relying on the RST pin to reset the device. 
+Wake-up sources for suspend and sleep modes are configured through the PMU0CF register. Wake-up sources are enabled by writing 1 to the corresponding wake-up source enable bit. Wake-up sources must be re-enabled each time the device is placed in Suspend or Sleep mode, in the same write that places the device in the low power mode. 
+The reset pin is always enabled as a wake-up source. On the falling edge of RST, the device will be awaken from sleep mode. The device must remain awake for more than 15 µs in order for the reset to take place.
+14.7.	Determining the Event that Caused the Last Wakeup
+When waking from idle mode, the CPU will vector to the interrupt which caused it to wake up. When waking from stop mode, the RSTSRC register may be read to determine the cause of the last reset. 
+Upon exit from suspend or sleep mode, the wake-up flags in the PMU0CF register can be read to determine the event which caused the device to wake up. After waking up, the wake-up flags will continue to be updated if any of the wake-up events occur. Wake-up flags are always updated, even if they are not enabled as wake-up sources.
+All wake-up flags enabled as wake-up sources in PMU0CF must be cleared before the device can enter suspend or sleep mode. After clearing the wake-up flags, each of the enabled wake-up events should be checked in the individual peripherals to ensure that a wake-up event did not occur while the wake-up flags were being cleared.
+
+SFR Definition 14.1. PMU0CF: Power Management Unit Configuration1,2
+Bit	7	6	5	4	3	2	1	0
+Name	SLEEP	SUSPEND	CLEAR	RSTWK	RTCFWK	RTCAWK	PMATWK	CPT0WK
+Type	W	W	W	R	R/W	R/W	R/W	R/W
+Reset	0	0	0	Varies	Varies	Varies	Varies	Varies
+
+SFR Page = 0x0; SFR Address = 0xB5
+Bit	Name	Description	Write	Read
+7	SLEEP	Sleep Mode Select	Writing 1 places the device in Sleep Mode.	N/A
+6	SUSPEND	Suspend Mode Select	Writing 1 places the device in Suspend Mode.	N/A
+5	CLEAR	Wake-up Flag Clear	Writing 1 clears all wake-up flags.	N/A
+4	RSTWK	Reset Pin Wake-up Flag	N/A	Set to 1 if a glitch has been detected on RST.
+3	RTCFWK	SmaRTClock Oscillator Fail Wake-up Source Enable and Flag	0: Disable wake-up on SmaRTClock Osc. Fail.
+1: Enable wake-up on SmaRTClock Osc. Fail.	Set to 1 if the SmaRTClock Oscillator has failed.
+2	RTCAWK	SmaRTClock Alarm Wake-up Source Enable and Flag	0: Disable wake-up on SmaRTClock Alarm.
+1: Enable wake-up on SmaRTClock Alarm.	Set to 1 if a SmaRTClock Alarm has occurred.
+1	PMATWK	Port Match Wake-up Source Enable and Flag	0: Disable wake-up on Port Match Event.
+1: Enable wake-up on 
+Port Match Event.	Set to 1 if a Port Match Event has occurred.
+0	CPT0WK	Comparator0 Wake-up Source Enable and Flag	0: Disable wake-up on Comparator0 rising edge.
+1: Enable wake-up on Comparator0 rising edge.	Set to 1 if Comparator0 rising edge caused the last wake-up.
+Notes:
+1.	Read-modify-write operations (ORL, ANL, etc.) should not be used on this register. Wake-up sources must be re-enabled each time the SLEEP or SUSPEND bits are written to 1. 
+2. 	The Low Power Internal Oscillator cannot be disabled and the MCU cannot be placed in Suspend or Sleep Mode if any wake-up flags are set to 1. Software should clear all wake-up sources after each reset and after each wake-up from suspend or sleep modes.				
+
+
+SFR Definition 14.2. PCON: Power Management Control Register
+Bit	7	6	5	4	3	2	1	0
+Name	GF[5:0]						STOP	IDLE
+Type	R/W						W	W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = All Pages; SFR Address = 0x87
+Bit	Name	Description	Write	Read
+7:2	GF[5:0]	General Purpose Flags	Sets the logic value.	Returns the logic value.
+1	STOP	Stop Mode Select	Writing 1 places the device in Stop Mode.	N/A
+0	IDLE	Idle Mode Select	Writing 1 places the device in Idle Mode.	N/A
+
+
+14.8.	Power Management Specifications
+See Table 4.5 on page 60 for detailed Power Management Specifications.

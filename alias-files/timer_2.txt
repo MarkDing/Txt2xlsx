@@ -1,0 +1,106 @@
+﻿25.2.	Timer 2
+Timer 2 is a 16-bit timer formed by two 8-bit SFRs: TMR2L (low byte) and TMR2H (high byte). Timer 2 may operate in 16-bit auto-reload mode or (split) 8-bit auto-reload mode. The T2SPLIT bit (TMR2CN.3) defines the Timer 2 operation mode. Timer 2 can also be used in Capture Mode to measure the SmaRTClock or the Comparator 0 period with respect to another oscillator. The ability to measure the Comparator 0 period with respect to the system clock is makes using Touch Sense Switches very easy.
+Timer 2 may be clocked by the system clock, the system clock divided by 12, SmaRTClock divided by 8, or Comparator 0 output. Note that the SmaRTClock divided by 8 and Comparator 0 output is synchronized with the system clock.
+25.2.1.	16-bit Timer with Auto-Reload
+When T2SPLIT (TMR2CN.3) is zero, Timer 2 operates as a 16-bit timer with auto-reload. Timer 2 can be clocked by SYSCLK, SYSCLK divided by 12, SmaRTClock divided by 8, or Comparator 0 output. As the 16-bit timer register increments and overflows from 0xFFFF to 0x0000, the 16-bit value in the Timer 2 reload registers (TMR2RLH and TMR2RLL) is loaded into the Timer 2 register as shown in Figure 25.4, and the Timer 2 High Byte Overflow Flag (TMR2CN.7) is set. If Timer 2 interrupts are enabled (if IE.5 is set), an interrupt will be generated on each Timer 2 overflow. Additionally, if Timer 2 interrupts are enabled and the TF2LEN bit is set (TMR2CN.5), an interrupt will be generated each time the lower 8 bits (TMR2L) overflow from 0xFF to 0x00.
+
+Figure 25.4. Timer 2 16-Bit Mode Block Diagram
+25.2.2.	8-bit Timers with Auto-Reload
+When T2SPLIT is set, Timer 2 operates as two 8-bit timers (TMR2H and TMR2L). Both 8-bit timers operate in auto-reload mode as shown in Figure 25.5. TMR2RLL holds the reload value for TMR2L; TMR2RLH holds the reload value for TMR2H. The TR2 bit in TMR2CN handles the run control for TMR2H. TMR2L is always running when configured for 8-bit Mode.
+Each 8-bit timer may be configured to use SYSCLK, SYSCLK divided by 12, SmaRTClock divided by 8 or Comparator 0 output. The Timer 2 Clock Select bits (T2MH and T2ML in CKCON) select either SYSCLK or the clock defined by the Timer 2 External Clock Select bits (T2XCLK[1:0] in TMR2CN), as follows:
+T2MH	T2XCLK[1:0]	TMR2H Clock Source		T2ML	T2XCLK[1:0]	TMR2L Clock Source
+0	00	SYSCLK / 12		0	00	SYSCLK / 12
+0	01	SmaRTClock / 8		0	01	SmaRTClock / 8
+0	10	Reserved		0	10	Reserved
+0	11	Comparator 0		0	11	Comparator 0
+1	X	SYSCLK		1	X	SYSCLK
+
+The TF2H bit is set when TMR2H overflows from 0xFF to 0x00; the TF2L bit is set when TMR2L overflows from 0xFF to 0x00. When Timer 2 interrupts are enabled (IE.5), an interrupt is generated each time TMR2H overflows. If Timer 2 interrupts are enabled and TF2LEN (TMR2CN.5) is set, an interrupt is generated each time either TMR2L or TMR2H overflows. When TF2LEN is enabled, software must check the TF2H and TF2L flags to determine the source of the Timer 2 interrupt. The TF2H and TF2L interrupt flags are not cleared by hardware and must be manually cleared by software.
+
+Figure 25.5. Timer 2 8-Bit Mode Block Diagram
+25.2.3.	Comparator 0/SmaRTClock Capture Mode
+The Capture Mode in Timer 2 allows either Comparator 0 or the SmaRTClock period to be measured against the system clock or the system clock divided by 12. Comparator 0 and the SmaRTClock period can also be compared against each other. Timer 2 Capture Mode is enabled by setting TF2CEN to 1. Timer 2 should be in 16-bit auto-reload mode when using Capture Mode.
+When Capture Mode is enabled, a capture event will be generated either every Comparator 0 rising edge or every 8 SmaRTClock clock cycles, depending on the T2XCLK1 setting. When the capture event occurs, the contents of Timer 2 (TMR2H:TMR2L) are loaded into the Timer 2 reload registers (TMR2RLH:TMR2RLL) and the TF2H flag is set (triggering an interrupt if Timer 2 interrupts are enabled). By recording the difference between two successive timer capture values, the Comparator 0 or SmaRTClock period can be determined with respect to the Timer 2 clock. The Timer 2 clock should be much faster than the capture clock to achieve an accurate reading. 
+For example, if T2ML = 1b, T2XCLK1 = 0b, and TF2CEN = 1b, Timer 2 will clock every SYSCLK and capture every SmaRTClock clock divided by 8. If the SYSCLK is 24.5 MHz and the difference between two successive captures is 5984, then the SmaRTClock clock is:
+24.5 MHz/(5984/8) = 0.032754 MHz or 32.754 kHz.
+This mode allows software to determine the exact SmaRTClock frequency in self-oscillate mode and the time between consecutive Comparator 0 rising edges, which is useful for detecting changes in the capacitance of a Touch Sense Switch.
+
+Figure 25.6. Timer 2 Capture Mode Block Diagram
+
+SFR Definition 25.8. TMR2CN: Timer 2 Control
+Bit	7	6	5	4	3	2	1	0
+Name	TF2H	TF2L	TF2LEN	TF2CEN	T2SPLIT	TR2	T2XCLK[1:0]	
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC8; Bit-Addressable
+Bit	Name	Function		
+7	TF2H	Timer 2 High Byte Overflow Flag.
+Set by hardware when the Timer 2 high byte overflows from 0xFF to 0x00. In 16 bit mode, this will occur when Timer 2 overflows from 0xFFFF to 0x0000. When the Timer 2 interrupt is enabled, setting this bit causes the CPU to vector to the Timer 2 interrupt service routine. This bit is not automatically cleared by hardware.		
+6	TF2L	Timer 2 Low Byte Overflow Flag.
+Set by hardware when the Timer 2 low byte overflows from 0xFF to 0x00. TF2L will be set when the low byte overflows regardless of the Timer 2 mode. This bit is not automatically cleared by hardware.		
+5	TF2LEN	Timer 2 Low Byte Interrupt Enable.
+When set to 1, this bit enables Timer 2 Low Byte interrupts. If Timer 2 interrupts are also enabled, an interrupt will be generated when the low byte of Timer 2 overflows.		
+4	TF2CEN	Timer 2 Capture Enable.
+When set to 1, this bit enables Timer 2 Capture Mode. 		
+3	T2SPLIT	Timer 2 Split Mode Enable.
+When set to 1, Timer 2 operates as two 8-bit timers with auto-reload. Otherwise, Timer 2 operates in 16-bit auto-reload mode.		
+2	TR2	Timer 2 Run Control. 
+Timer 2 is enabled by setting this bit to 1. In 8-bit mode, this bit enables/disables TMR2H only; TMR2L is always enabled in split mode.		
+1:0	T2XCLK[1:0]	Timer 2 External Clock Select.
+This bit selects the “external” and “capture trigger” clock sources for Timer 2. If Timer 2 is in 8-bit mode, this bit selects the “external” clock source for both timer bytes. Timer 2 Clock Select bits (T2MH and T2ML in register CKCON) may still be used to select between the “external” clock and the system clock for either timer.
+Note: External clock sources are synchronized with the system clock.
+00: External Clock is SYSCLK/12. Capture trigger is SmaRTClock/8.
+01: External Clock is Comparator 0. Capture trigger is SmaRTClock/8.
+10: External Clock is SYSCLK/12. Capture trigger is Comparator 0.
+11: External Clock is SmaRTClock/8. Capture trigger is Comparator 0.		
+
+
+SFR Definition 25.9. TMR2RLL: Timer 2 Reload Register Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TMR2RLL[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xCA
+Bit	Name	Function		
+7:0	TMR2RLL[7:0]	Timer 2 Reload Register Low Byte.
+TMR2RLL holds the low byte of the reload value for Timer 2.		
+
+
+SFR Definition 25.10. TMR2RLH: Timer 2 Reload Register High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TMR2RLH[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xCB
+Bit	Name	Function		
+7:0	TMR2RLH[7:0]	Timer 2 Reload Register High Byte.
+TMR2RLH holds the high byte of the reload value for Timer 2.		
+
+
+SFR Definition 25.11. TMR2L: Timer 2 Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TMR2L[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xCC
+Bit	Name	Function		
+7:0	TMR2L[7:0]	Timer 2 Low Byte.
+In 16-bit mode, the TMR2L register contains the low byte of the 16-bit Timer 2. In 8-bit mode, TMR2L contains the 8-bit low byte timer value.		
+
+
+SFR Definition 25.12. TMR2H: Timer 2 High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TMR2H[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xCD
+Bit	Name	Function		
+7:0	TMR2H[7:0]	Timer 2 Low Byte.
+In 16-bit mode, the TMR2H register contains the high byte of the 16-bit Timer 2. In 8-bit mode, TMR2H contains the 8-bit high byte timer value.		
+
+

@@ -1,0 +1,28 @@
+﻿6.	Programmable Current Reference (IREF0)
+C8051F93x-C8051F92x devices include an on-chip programmable current reference (source or sink) with two output current settings: Low Power Mode and High Current Mode. The maximum current output in Low Power Mode is 63 µA (1 µA steps) and the maximum current output in High Current Mode is 504 µA (8 µA steps). 
+The current source/sink is controlled though the IREF0CN special function register. It is enabled by setting the desired output current to a non-zero value. It is disabled by writing 0x00 to IREF0CN. The port I/O pin associated with ISRC0 should be configured as an analog input and skipped in the Crossbar. See Section “21. Port Input/Output” on page 216 for more details.
+
+SFR Definition 6.1. IREF0CN: Current Reference Control
+Bit	7	6	5	4	3	2	1	0
+Name	SINK	MODE	IREF0DAT					
+Type	R/W	R/W	R/W					
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xB9
+Bit	Name	Function		
+7	SINK	IREF0 Current Sink Enable.
+Selects if IREF0 is a current source or a current sink.
+0: IREF0 is a current source.
+1: IREF0 is a current sink.		
+6	MDSEL	IREF0 Output Mode Select. 
+Selects Low Power or High Current Mode.
+0: Low Power Mode is selected (step size = 1 µA).
+1: High Current Mode is selected (step size = 8 µA).		
+5:0	IREF0DAT[5:0]	IREF0 Data Word.
+Specifies the number of steps required to achieve the desired output current.
+Output current = direction x step size x IREF0DAT.
+IREF0 is in a low power state when IREF0DAT is set to 0x00.		
+
+
+6.1.	IREF0 Specifications
+See Table 4.12 on page 63 for a detailed listing of IREF0 specifications.

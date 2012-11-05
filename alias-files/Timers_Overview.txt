@@ -1,0 +1,53 @@
+﻿25.	Timers
+Each MCU includes four counter/timers: two are 16-bit counter/timers compatible with those found in the standard 8051, and two are 16-bit auto-reload timer for use with the ADC, SMBus, or for general purpose use. These timers can be used to measure time intervals, count external events and generate periodic interrupt requests. Timer 0 and Timer 1 are nearly identical and have four primary modes of operation. Timer 2 and Timer 3 offer 16-bit and split 8-bit timer functionality with auto-reload. Additionally, Timer 2 and Timer 3 have a Capture Mode that can be used to measure the SmaRTClock or a Comparator period with respect to another oscillator. This is particularly useful when using Capacitive Touch Switches. 
+
+Timer 0 and Timer 1 Modes:	Timer 2 Modes:	Timer 3 Modes:
+13-bit counter/timer	16-bit timer with auto-reload	16-bit timer with auto-reload
+16-bit counter/timer		
+8-bit counter/timer with auto-reload	Two 8-bit timers with auto-reload	Two 8-bit timers with auto-reload
+Two 8-bit counter/timers (Timer 0 only)		
+
+Timers 0 and 1 may be clocked by one of five sources, determined by the Timer Mode Select bits (T1M–T0M) and the Clock Scale bits (SCA1–SCA0). The Clock Scale bits define a pre-scaled clock from which Timer 0 and/or Timer 1 may be clocked (See SFR Definition 25.1 for pre-scaled clock selection).
+Timer 0/1 may then be configured to use this pre-scaled clock signal or the system clock. Timer 2 and Timer 3 may be clocked by the system clock, the system clock divided by 12. Timer 2 may additionally be clocked by the SmaRTClock divided by 8 or the Comparator0 output. Timer 3 may additionally be clocked by the external oscillator clock source divided by 8 or the Comparator1 output.
+Timer 0 and Timer 1 may also be operated as counters. When functioning as a counter, a counter/timer register is incremented on each high-to-low transition at the selected input pin (T0 or T1). Events with a frequency of up to one-fourth the system clock frequency can be counted. The input signal need not be periodic, but it should be held at a given level for at least two full system clock cycles to ensure the level is properly sampled. 
+
+SFR Definition 25.1. CKCON: Clock Control
+Bit	7	6	5	4	3	2	1	0
+Name	T3MH	T3ML	T2MH	T2ML	T1M	T0M	SCA[1:0]	
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x8E
+Bit	Name	Function		
+7	T3MH	Timer 3 High Byte Clock Select.
+Selects the clock supplied to the Timer 3 high byte (split 8-bit timer mode only).
+0: Timer 3 high byte uses the clock defined by the T3XCLK bit in TMR3CN.
+1: Timer 3 high byte uses the system clock.		
+6	T3ML	Timer 3 Low Byte Clock Select.
+Selects the clock supplied to Timer 3. Selects the clock supplied to the lower 8-bit timer in split 8-bit timer mode.
+0: Timer 3 low byte uses the clock defined by the T3XCLK bit in TMR3CN.
+1: Timer 3 low byte uses the system clock.		
+5	T2MH	Timer 2 High Byte Clock Select.
+Selects the clock supplied to the Timer 2 high byte (split 8-bit timer mode only).
+0: Timer 2 high byte uses the clock defined by the T2XCLK bit in TMR2CN.
+1: Timer 2 high byte uses the system clock.		
+4	T2ML	Timer 2 Low Byte Clock Select.
+Selects the clock supplied to Timer 2. If Timer 2 is configured in split 8-bit timer mode, this bit selects the clock supplied to the lower 8-bit timer.
+0: Timer 2 low byte uses the clock defined by the T2XCLK bit in TMR2CN.
+1: Timer 2 low byte uses the system clock.		
+3	T1M	Timer 1 Clock Select.
+Selects the clock source supplied to Timer 1. Ignored when C/T1 is set to 1.
+0: Timer 1 uses the clock defined by the prescale bits SCA[1:0].
+1: Timer 1 uses the system clock.		
+2	T0M	Timer 0 Clock Select.
+Selects the clock source supplied to Timer 0. Ignored when C/T0 is set to 1.
+0: Counter/Timer 0 uses the clock defined by the prescale bits SCA[1:0].
+1: Counter/Timer 0 uses the system clock.		
+1:0	SCA[1:0]	Timer 0/1 Prescale Bits.
+These bits control the Timer 0/1 Clock Prescaler:
+00: System clock divided by 12
+01: System clock divided by 4
+10: System clock divided by 48
+11: External clock divided by 8 (synchronized with the system clock)		
+
+

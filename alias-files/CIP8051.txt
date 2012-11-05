@@ -1,0 +1,267 @@
+﻿-	Fully Compatible with MCS-51 Instruction Set
+-	25 MIPS Peak Throughput with 25 MHz Clock
+-	0 to 25 MHz Clock Frequency
+-	Extended Interrupt Handler 
+-	Reset Input
+-	Power Management Modes
+-	On-chip Debug Logic
+-	Program and Data Memory Security
+
+Notes on Registers, Operands and Addressing Modes:
+Rn—Register R0–R7 of the currently selected register bank.
+
+@Ri—Data RAM location addressed indirectly through R0 or R1.
+
+rel—8-bit, signed (twos complement) offset relative to the first byte of the following instruction. Used by SJMP and all conditional jumps.
+
+direct—8-bit internal data location’s address. This could be a direct-access Data RAM location (0x00–0x7F) or an SFR (0x80–0xFF).
+
+#data—8-bit constant
+
+#data16—16-bit constant
+
+bit—Direct-accessed bit in Data RAM or SFR
+
+addr11—11-bit destination address used by ACALL and AJMP. The destination must be within the same 2 kB page of program memory as the first byte of the following instruction.
+
+addr16—16-bit destination address used by LCALL and LJMP. The destination may be anywhere within the 8 kB program memory space.
+
+There is one unused opcode (0xA5) that performs the same function as NOP.
+All mnemonics copyrighted © Intel Corporation 1980.
+
+8.	CIP-51 Microcontroller 
+The MCU system controller core is the CIP-51 microcontroller. The CIP-51 is fully compatible with the MCS-51™ instruction set; standard 803x/805x assemblers and compilers can be used to develop software. The MCU family has a superset of all the peripherals included with a standard 8051. The CIP-51 also includes on-chip debug hardware (see description in Section 27), and interfaces directly with the analog and digital subsystems providing a complete data acquisition or control-system solution in a single integrated circuit.
+The CIP-51 Microcontroller core implements the standard 8051 organization and peripherals as well as additional custom peripherals and functions to extend its capability (see Figure 8.1 for a block diagram). The CIP-51 includes the following features:
+Performance
+The CIP-51 employs a pipelined architecture that greatly increases its instruction throughput over the standard 8051 architecture. In a standard 8051, all instructions except for MUL and DIV take 12 or 24 system clock cycles to execute, and usually have a maximum system clock of 12 MHz. By contrast, the CIP-51 core executes 70% of its instructions in one or two system clock cycles, with no instructions taking more than eight system clock cycles.
+
+Figure 8.1. CIP-51 Block Diagram
+With the CIP-51's maximum system clock at 25 MHz, it has a peak throughput of 25 MIPS. The CIP-51 has a total of 109 instructions. The table below shows the total number of instructions that require each execution time.
+Clocks to Execute	1	2	2/3	3	3/4	4	4/5	5	8
+Number of Instructions	26	50	5	14	7	3	1	2	1
+
+Programming and Debugging Support
+In-system programming of the Flash program memory and communication with on-chip debug support logic is accomplished via the Silicon Labs 2-Wire Development Interface (C2).
+The on-chip debug support logic facilitates full speed in-circuit debugging, allowing the setting of hardware breakpoints, starting, stopping and single stepping through program execution (including interrupt service routines), examination of the program's call stack, and reading/writing the contents of registers and memory. This method of on-chip debugging is completely non-intrusive, requiring no RAM, Stack, timers, or other on-chip resources. C2 details can be found in Section “27. C2 Interface” on page 324.
+The CIP-51 is supported by development tools from Silicon Labs and third party vendors. Silicon Labs provides an integrated development environment (IDE) including editor, debugger and programmer. The IDE's debugger and programmer interface to the CIP-51 via the C2 interface to provide fast and efficient in-system device programming and debugging. Third party macro assemblers and C compilers are also available.
+8.1.	Instruction Set
+The instruction set of the CIP-51 System Controller is fully compatible with the standard MCS-51™ instruction set. Standard 8051 development tools can be used to develop software for the CIP-51. All CIP-51 instructions are the binary and functional equivalent of their MCS-51™ counterparts, including opcodes, addressing modes and effect on PSW flags. However, instruction timing is different than that of the standard 8051. 
+8.1.1.	Instruction and CPU Timing
+In many 8051 implementations, a distinction is made between machine cycles and clock cycles, with machine cycles varying from 2 to 12 clock cycles in length. However, the CIP-51 implementation is based solely on clock cycle timing. All instruction timings are specified in terms of clock cycles.
+Due to the pipelined architecture of the CIP-51, most instructions execute in the same number of clock cycles as there are program bytes in the instruction. Conditional branch instructions take one less clock cycle to complete when the branch is not taken as opposed to when the branch is taken. Table 8.1 is the CIP-51 Instruction Set Summary, which includes the mnemonic, number of bytes, and number of clock cycles for each instruction.
+
+Table 8.1. CIP-51 Instruction Set Summary  
+Mnemonic	Description	Bytes	Clock Cycles
+Arithmetic Operations			
+ADD A, Rn	Add register to A	1	1
+ADD A, direct	Add direct byte to A	2	2
+ADD A, @Ri	Add indirect RAM to A	1	2
+ADD A, #data	Add immediate to A	2	2
+ADDC A, Rn	Add register to A with carry	1	1
+ADDC A, direct	Add direct byte to A with carry	2	2
+ADDC A, @Ri	Add indirect RAM to A with carry	1	2
+ADDC A, #data	Add immediate to A with carry	2	2
+SUBB A, Rn	Subtract register from A with borrow	1	1
+SUBB A, direct	Subtract direct byte from A with borrow	2	2
+SUBB A, @Ri	Subtract indirect RAM from A with borrow	1	2
+SUBB A, #data	Subtract immediate from A with borrow	2	2
+INC A	Increment A	1	1
+INC Rn	Increment register	1	1
+INC direct	Increment direct byte	2	2
+INC @Ri	Increment indirect RAM	1	2
+DEC A	Decrement A	1	1
+DEC Rn	Decrement register	1	1
+DEC direct	Decrement direct byte	2	2
+DEC @Ri	Decrement indirect RAM	1	2
+INC DPTR	Increment Data Pointer	1	1
+MUL AB	Multiply A and B	1	4
+DIV AB	Divide A by B	1	8
+DA A	Decimal adjust A	1	1
+Logical Operations			
+ANL A, Rn	AND Register to A	1	1
+ANL A, direct	AND direct byte to A	2	2
+ANL A, @Ri	AND indirect RAM to A	1	2
+ANL A, #data	AND immediate to A	2	2
+ANL direct, A	AND A to direct byte	2	2
+ANL direct, #data	AND immediate to direct byte	3	3
+ORL A, Rn	OR Register to A	1	1
+ORL A, direct	OR direct byte to A	2	2
+ORL A, @Ri	OR indirect RAM to A	1	2
+ORL A, #data	OR immediate to A	2	2
+ORL direct, A	OR A to direct byte	2	2
+ORL direct, #data	OR immediate to direct byte	3	3
+XRL A, Rn	Exclusive-OR Register to A	1	1
+XRL A, direct	Exclusive-OR direct byte to A	2	2
+XRL A, @Ri	Exclusive-OR indirect RAM to A	1	2
+XRL A, #data	Exclusive-OR immediate to A	2	2
+XRL direct, A	Exclusive-OR A to direct byte	2	2
+XRL direct, #data	Exclusive-OR immediate to direct byte	3	3
+CLR A	Clear A	1	1
+CPL A	Complement A	1	1
+RL A	Rotate A left	1	1
+RLC A	Rotate A left through Carry	1	1
+RR A	Rotate A right	1	1
+RRC A	Rotate A right through Carry	1	1
+SWAP A	Swap nibbles of A	1	1
+Data Transfer			
+MOV A, Rn	Move Register to A	1	1
+MOV A, direct	Move direct byte to A	2	2
+MOV A, @Ri	Move indirect RAM to A	1	2
+MOV A, #data	Move immediate to A	2	2
+MOV Rn, A	Move A to Register	1	1
+MOV Rn, direct	Move direct byte to Register	2	2
+MOV Rn, #data	Move immediate to Register	2	2
+MOV direct, A	Move A to direct byte	2	2
+MOV direct, Rn	Move Register to direct byte	2	2
+MOV direct, direct	Move direct byte to direct byte	3	3
+MOV direct, @Ri	Move indirect RAM to direct byte	2	2
+MOV direct, #data	Move immediate to direct byte	3	3
+MOV @Ri, A	Move A to indirect RAM	1	2
+MOV @Ri, direct	Move direct byte to indirect RAM	2	2
+MOV @Ri, #data	Move immediate to indirect RAM	2	2
+MOV DPTR, #data16	Load DPTR with 16-bit constant	3	3
+MOVC A, @A+DPTR	Move code byte relative DPTR to A	1	3
+MOVC A, @A+PC	Move code byte relative PC to A	1	3
+MOVX A, @Ri	Move external data (8-bit address) to A	1	3
+MOVX @Ri, A	Move A to external data (8-bit address)	1	3
+MOVX A, @DPTR	Move external data (16-bit address) to A	1	3
+MOVX @DPTR, A	Move A to external data (16-bit address)	1	3
+PUSH direct	Push direct byte onto stack	2	2
+POP direct	Pop direct byte from stack	2	2
+XCH A, Rn	Exchange Register with A	1	1
+XCH A, direct	Exchange direct byte with A	2	2
+XCH A, @Ri	Exchange indirect RAM with A	1	2
+XCHD A, @Ri	Exchange low nibble of indirect RAM with A	1	2
+Boolean Manipulation			
+CLR C	Clear Carry	1	1
+CLR bit	Clear direct bit	2	2
+SETB C	Set Carry	1	1
+SETB bit	Set direct bit	2	2
+CPL C	Complement Carry	1	1
+CPL bit	Complement direct bit	2	2
+ANL C, bit	AND direct bit to Carry	2	2
+ANL C, /bit	AND complement of direct bit to Carry	2	2
+ORL C, bit	OR direct bit to carry	2	2
+ORL C, /bit	OR complement of direct bit to Carry	2	2
+MOV C, bit	Move direct bit to Carry	2	2
+MOV bit, C	Move Carry to direct bit	2	2
+JC rel	Jump if Carry is set	2	2/3
+JNC rel	Jump if Carry is not set	2	2/3
+JB bit, rel	Jump if direct bit is set	3	3/4
+JNB bit, rel	Jump if direct bit is not set	3	3/4
+JBC bit, rel	Jump if direct bit is set and clear bit	3	3/4
+Program Branching			
+ACALL addr11	Absolute subroutine call	2	3
+LCALL addr16	Long subroutine call	3	4
+RET	Return from subroutine	1	5
+RETI	Return from interrupt	1	5
+AJMP addr11	Absolute jump	2	3
+LJMP addr16	Long jump	3	4
+SJMP rel	Short jump (relative address)	2	3
+JMP @A+DPTR	Jump indirect relative to DPTR	1	3
+JZ rel	Jump if A equals zero	2	2/3
+JNZ rel	Jump if A does not equal zero	2	2/3
+CJNE A, direct, rel	Compare direct byte to A and jump if not equal	3	4/5
+CJNE A, #data, rel	Compare immediate to A and jump if not equal	3	3/4
+CJNE Rn, #data, rel	Compare immediate to Register and jump if not equal	3	3/4
+CJNE @Ri, #data, rel	Compare immediate to indirect and jump if not equal	3	4/5
+DJNZ Rn, rel	Decrement Register and jump if not zero	2	2/3
+DJNZ direct, rel	Decrement direct byte and jump if not zero	3	3/4
+NOP	No operation	1	1
+
+
+8.2.	CIP-51 Register Descriptions
+Following are descriptions of SFRs related to the operation of the CIP-51 System Controller. Reserved bits should not be set to logic l. Future product versions may use these bits to implement new features in which case the reset value of the bit will be logic 0, selecting the feature's default state. Detailed descriptions of the remaining SFRs are included in the sections of the data sheet associated with their corresponding system function.
+
+SFR Definition 8.1. DPL: Data Pointer Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	DPL[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = All Pages; SFR Address = 0x82
+Bit	Name	Function		
+7:0	DPL[7:0]	Data Pointer Low.
+The DPL register is the low byte of the 16-bit DPTR. DPTR is used to access indirectly addressed Flash memory or XRAM.		
+
+
+SFR Definition 8.2. DPH: Data Pointer High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	DPH[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = All Pages; SFR Address = 0x83
+Bit	Name	Function		
+7:0	DPH[7:0]	Data Pointer High.
+The DPH register is the high byte of the 16-bit DPTR. DPTR is used to access indirectly addressed Flash memory or XRAM.		
+
+
+SFR Definition 8.3. SP: Stack Pointer
+Bit	7	6	5	4	3	2	1	0
+Name	SP[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	1	1	1
+
+SFR Page = All Pages; SFR Address = 0x81
+Bit	Name	Function		
+7:0	SP[7:0]	Stack Pointer.
+The Stack Pointer holds the location of the top of the stack. The stack pointer is incremented before every PUSH operation. The SP register defaults to 0x07 after reset.		
+
+
+SFR Definition 8.4. ACC: Accumulator
+Bit	7	6	5	4	3	2	1	0
+Name	ACC[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = All Pages; SFR Address = 0xE0; Bit-Addressable
+Bit	Name	Function		
+7:0	ACC[7:0]	Accumulator.
+This register is the accumulator for arithmetic operations.		
+
+
+SFR Definition 8.5. B: B Register
+Bit	7	6	5	4	3	2	1	0
+Name	B[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = All Pages; SFR Address = 0xF0; Bit-Addressable
+Bit	Name	Function		
+7:0	B[7:0]	B Register.
+This register serves as a second accumulator for certain arithmetic operations.		
+
+
+SFR Definition 8.6. PSW: Program Status Word
+Bit	7	6	5	4	3	2	1	0
+Name	CY	AC	F0	RS[1:0]		OV	F1	PARITY
+Type	R/W	R/W	R/W	R/W		R/W	R/W	R
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = All Pages; SFR Address = 0xD0; Bit-Addressable
+Bit	Name	Function		
+7	CY	Carry Flag.
+This bit is set when the last arithmetic operation resulted in a carry (addition) or a borrow (subtraction). It is cleared to logic 0 by all other arithmetic operations.		
+6	AC	Auxiliary Carry Flag.
+This bit is set when the last arithmetic operation resulted in a carry into (addition) or a borrow from (subtraction) the high order nibble. It is cleared to logic 0 by all other arithmetic operations.		
+5	F0	User Flag 0.
+This is a bit-addressable, general purpose flag for use under software control.		
+4:3	RS[1:0]	Register Bank Select.
+These bits select which register bank is used during register accesses.
+00: Bank 0, Addresses 0x00-0x07
+01: Bank 1, Addresses 0x08-0x0F
+10: Bank 2, Addresses 0x10-0x17
+11: Bank 3, Addresses 0x18-0x1F		
+2	OV	Overflow Flag.
+This bit is set to 1 under the following circumstances:
+•	An ADD, ADDC, or SUBB instruction causes a sign-change overflow.
+•	A MUL instruction results in an overflow (result is greater than 255).
+•	A DIV instruction causes a divide-by-zero condition.
+The OV bit is cleared to 0 by the ADD, ADDC, SUBB, MUL, and DIV instructions in all other cases.		
+1	F1	User Flag 1.
+This is a bit-addressable, general purpose flag for use under software control.		
+0	PARITY	Parity Flag.
+This bit is set to logic 1 if the sum of the eight bits in the accumulator is odd and cleared if the sum is even.		
+
+

@@ -1,0 +1,44 @@
+﻿5.6.	Temperature Sensor
+An on-chip temperature sensor is included on the C8051F93x-C8051F92x which can be directly accessed via the ADC multiplexer in single-ended configuration. To use the ADC to measure the temperature sensor, the ADC mux channel should select the temperature sensor. The temperature sensor transfer function is shown in Figure 5.8. The output voltage (VTEMP) is the positive ADC input when the ADC multiplexer is set correctly. The TEMPE bit in register REF0CN enables/disables the temperature sensor, as described in SFR Definition 5.15. While disabled, the temperature sensor defaults to a high impedance state and any ADC measurements performed on the sensor will result in meaningless data. Refer to Table 4.9 for the slope and offset parameters of the temperature sensor.
+
+Important Note: Before switching the ADC multiplexer from another channel to the temperature sensor, the ADC mux should select the 'Ground' channel as an intermediate step. The intermediate 'Ground' channel selection step will discharge any voltage on the ADC sampling capacitor from the previous channel selection. This will prevent the possibility of a high voltage (> 2V) being presented to the temperature sensor circuit, which can otherwise impact its long-term reliability.
+
+Figure 5.8. Temperature Sensor Transfer Function
+5.6.1.	Calibration
+The uncalibrated temperature sensor output is extremely linear and suitable for relative temperature measurements (see Table 4.10 for linearity specifications). For absolute temperature measurements, offset and/or gain calibration is recommended. Typically a 1-point (offset) calibration includes the following steps:
+Step 1.  Control/measure the ambient temperature (this temperature must be known).
+Step 2.  Power the device, and delay for a few seconds to allow for self-heating.
+Step 3.  Perform an ADC conversion with the temperature sensor selected as the positive input and GND selected as the negative input.
+Step 4.  Calculate the offset characteristics, and store this value in non-volatile memory for use with subsequent temperature sensor measurements.
+
+Figure 5.9 shows the typical temperature sensor error assuming a 1-point calibration at 25 °C. Parameters that affect ADC measurement, in particular the voltage reference value, will also affect temperature measurement.
+A single-point offset measurement of the temperature sensor is performed on each device during production test. The measurement is performed at 25 °C ±5 °C, using the ADC with the internal high speed reference buffer selected as the Voltage Reference. The direct ADC result of the measurement is stored in the SFR registers TOFFH and TOFFL, shown in SFR Definition 5.13 and SFR Definition 5.14.
+
+Figure 5.9. Temperature Sensor Error with 1-Point Calibration (VREF = 1.68 V)
+
+SFR Definition 5.13. TOFFH: ADC0 Data Word High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TOFF[9:2]							
+Type	R	R	R	R	R	R	R	R
+Reset	Varies	Varies	Varies	Varies	Varies	Varies	Varies	Varies
+
+SFR Page = 0xF; SFR Address = 0x86
+Bit	Name	Function		
+7:0	TOFF[9:2]	Temperature Sensor Offset High Bits.
+Most Significant Bits of the 10-bit temperature sensor offset measurement.		
+
+
+SFR Definition 5.14. TOFFL: ADC0 Data Word Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TOFF[1:0]							
+Type	R	R						
+Reset	Varies	Varies	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x85
+Bit	Name	Function		
+7:6	TOFF[1:0]	Temperature Sensor Offset Low Bits.
+Least Significant Bits of the 10-bit temperature sensor offset measurement.		
+5:0	Unused	Unused.
+Read = 0; Write = Don't Care.		
+
+

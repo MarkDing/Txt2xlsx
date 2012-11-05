@@ -1,0 +1,100 @@
+﻿7.6.	Comparator0 and Comparator1 Analog Multiplexers
+Comparator0 and Comparator1 on C8051F93x-C8051F92x devices have analog input multiplexers to connect Port I/O pins and internal signals the comparator inputs; CP0+/CP0- are the positive and negative input multiplexers for Comparator0 and CP1+/CP1- are the positive and negative input multiplexers for Comparator1. 
+The comparator input multiplexers directly support capacitive touch switches. When the Capacitive Touch Sense Compare input is selected on the positive or negative multiplexer, any Port I/O pin connected to the other multiplexer can be directly connected to a capacitive touch switch with no additional external components. The Capacitive Touch Sense Compare provides the appropriate reference level for detecting when the capacitive touch switches have charged or discharged through the on-chip Rsense resistor. The Comparator outputs can be routed to Timer2 or Timer3 for capturing sense capacitor’s charge and discharge time. See Section “25. Timers” on page 283 for details. 
+Any of the following may be selected as comparator inputs: Port I/O pins, Capacitive Touch Sense Compare, VDD/DC+ Supply Voltage, Regulated Digital Supply Voltage (Output of VREG0), the VBAT Supply voltage or ground. The Comparator’s supply voltage divided by 2 is also available as an input; the resistors used to divide the voltage only draw current when this setting is selected. The Comparator input multiplexers are configured using the CPT0MX and CPT1MX registers described in SFR Definition 7.5 and SFR Definition 7.6.
+
+Figure 7.4. CPn Multiplexer Block Diagram
+Important Note About Comparator Input Configuration: Port pins selected as comparator inputs should be configured as analog inputs, and should be skipped by the Digital Crossbar. To configure a Port pin for analog input, set to 0 the corresponding bit in register PnMDIN and disable the digital driver (PnMDOUT = 0 and Port Latch = 1). To force the Crossbar to skip a Port pin, set to 1 the corresponding bit in register PnSKIP. See Section “21. Port Input/Output” on page 216 for more Port I/O configuration details.
+
+SFR Definition 7.5. CPT0MX: Comparator0 Input Channel Select
+Bit	7	6	5	4	3	2	1	0
+Name	CMX0N[3:0]				CMX0P[3:0]			
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0x9F
+Bit	Name	Function			
+7:4	CMX0N	Comparator0 Negative Input Selection.
+Selects the negative input channel for Comparator0.			
+0000:	P0.1	
+0001:	P0.3	
+0010:	P0.5	
+0011:	P0.7	
+0100:	P1.1	
+0101:	P1.3	
+0110:	P1.5	
+0111:	P1.7 (C8051F920/30 Only)
+1000:	P2.1 (C8051F920/30 Only)
+1001:	P2.3 (C8051F920/30 Only)
+1010:	P2.5 (C8051F920/30 Only)
+1011:	Reserved
+1100:	Capacitive Touch Sense Compare
+1101:	VDD/DC+ divided by 2
+1110:	Digital Supply Voltage
+1111:	Ground
+3:0	CMX0P	Comparator0 Positive Input Selection.
+Selects the positive input channel for Comparator0.			
+0000:	P0.0	
+0001:	P0.2	
+0010:	P0.4	
+0011:	P0.6	
+0100:	P1.0	
+0101:	P1.2	
+0110:	P1.4	
+0111:	P1.6	
+1000:	P2.0 (C8051F920/30 Only)
+1001:	P2.2 (C8051F920/30 Only)
+1010:	P2.4 (C8051F920/30 Only)
+1011:	P2.6 (C8051F920/30 Only)
+1100:	Capacitive Touch Sense Compare
+1101:	VDD/DC+ divided by 2
+1110:	VBAT Supply Voltage
+1111:	VDD/DC+ Supply Voltage
+
+
+SFR Definition 7.6. CPT1MX: Comparator1 Input Channel Select
+Bit	7	6	5	4	3	2	1	0
+Name	CMX1N[3:0]				CMX1P[3:0]			
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0x9E
+Bit	Name	Function			
+7:4	CMX1N	Comparator1 Negative Input Selection.
+Selects the negative input channel for Comparator1.			
+0000:	P0.1	
+0001:	P0.3	
+0010:	P0.5	
+0011:	P0.7	
+0100:	P1.1	
+0101:	P1.3	
+0110:	P1.5	
+0111:	P1.7 (C8051F920/30 Only)	
+1000:	P2.1 (C8051F920/30 Only)
+1001:	P2.3 (C8051F920/30 Only)
+1010:	P2.5 (C8051F920/30 Only)
+1100:	Capacitive Touch Sense Compare
+1011:	Reserved
+1101:	VDD/DC+ divided by 2
+1110:	Digital Supply Voltage
+1111:	Ground
+3:0	CMX1P	Comparator1 Positive Input Selection.
+Selects the positive input channel for Comparator1.			
+0000:	P0.0	
+0001:	P0.2	
+0010:	P0.4	
+0011:	P0.6	
+0100:	P1.0	
+0101:	P1.2	
+0110:	P1.4	
+0111:	P1.6	
+1000:	P2.0 (C8051F920/30 Only)
+1001:	P2.2 (C8051F920/30 Only)
+1010:	P2.4 (C8051F920/30 Only)
+1011:	P2.6 (C8051F920/30 Only)
+1100:	Capacitive Touch Sense Compare
+1101:	VDD/DC+ divided by 2
+1110:	VBAT Supply Voltage
+1111:	VDD/DC+ Supply Voltage
+
+

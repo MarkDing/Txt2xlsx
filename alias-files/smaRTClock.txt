@@ -1,0 +1,395 @@
+﻿20.	SmaRTClock (Real Time Clock)
+C8051F93x-C8051F92x devices include an ultra low power 32-bit SmaRTClock Peripheral (Real Time Clock) with alarm. The SmaRTClock has a dedicated 32 kHz oscillator that can be configured for use with or without a crystal. No external resistor or loading capacitors are required. The on-chip loading capacitors are programmable to 16 discrete levels allowing compatibility with a wide range of crystals. The SmaRTClock can operate directly from a 0.9–3.6 V battery voltage and remains operational even when the device goes into its lowest power down mode. 
+The SmaRTClock allows a maximum of 36 hour 32-bit independent time-keeping when used with a 32.768 kHz Watch Crystal. The SmaRTClock provides an Alarm and Missing SmaRTClock events, which could be used as reset or wakeup sources. See Section “18. Reset Sources” on page 184 and Section “14. Power Management” on page 159 for details on reset sources and low power mode wake-up sources, respectively.
+
+Figure 20.1. SmaRTClock Block Diagram
+20.1.	SmaRTClock Interface
+The SmaRTClock Interface consists of three registers: RTC0KEY, RTC0ADR, and RTC0DAT. These interface registers are located on the CIP-51’s SFR map and provide access to the SmaRTClock internal registers listed in Table 20.1. The SmaRTClock internal registers can only be accessed indirectly through the SmaRTClock Interface. 
+
+Table 20.1. SmaRTClock Internal Registers
+SmaRTClock Address	SmaRTClock
+Register	Register Name	Description
+0x00–0x03 	CAPTUREn	SmaRTClock Capture Registers	Four Registers used for setting the 32-bit SmaRTClock timer or reading its current value. 
+0x04	RTC0CN	SmaRTClock Control Register	Controls the operation of the SmaRTClock State Machine.
+0x05	RTC0XCN	SmaRTClock Oscillator Control Register	Controls the operation of the SmaRTClock Oscillator.
+0x06	RTC0XCF	SmaRTClock Oscillator Configuration Register	Controls the value of the programmable oscillator load capacitance and enables/disables AutoStep.
+0x07	RTC0PIN	SmaRTClock Pin Configuration Register	Forces XTAL3 and XTAL4 to be internally shorted. 
+Note:	This register also contains other reserved bits which should not be modified.
+0x08–0x0B	ALARMn	SmaRTClock Alarm Registers	Four registers used for setting or reading the 32-bit SmaRTClock alarm value.
+
+20.1.1.	SmaRTClock Lock and Key Functions
+The SmaRTClock Interface is protected with a lock and key function. The SmaRTClock Lock and Key Register (RTC0KEY) must be written with the correct key codes, in sequence, before writes and reads to RTC0ADR and RTC0DAT may be performed. The key codes are: 0xA5, 0xF1. There are no timing restrictions, but the key codes must be written in order. If the key codes are written out of order, the wrong codes are written, or an indirect register read or write is attempted while the interface is locked, the SmaRTClock interface will be disabled, and the RTC0ADR and RTC0DAT registers will become inaccessible until the next system reset. Once the SmaRTClock interface is unlocked, software may perform any number of accesses to the SmaRTClock registers until the interface is re-locked or the device is reset. Any write to RTC0KEY while the SmaRTClock interface is unlocked will re-lock the interface.
+Reading the RTC0KEY register at any time will provide the SmaRTClock Interface status and will not interfere with the sequence that is being written. The RTC0KEY register description in SFR Definition 20.1 lists the definition of each status code.
+20.1.2.	Using RTC0ADR and RTC0DAT to Access SmaRTClock Internal Registers
+The SmaRTClock internal registers can be read and written using RTC0ADR and RTC0DAT. The RTC0ADR register selects the SmaRTClock internal register that will be targeted by subsequent reads or writes. Recommended instruction timing is provided in this section. If the recommended instruction timing is not followed, then BUSY (RTC0ADR.7) should be checked prior to each read or write operation to make sure the SmaRTClock Interface is not busy performing the previous read or write operation. A SmaRTClock Write operation is initiated by writing to the RTC0DAT register. Below is an example of writing to a SmaRTClock internal register.
+	1.	Poll BUSY (RTC0ADR.7) until it returns 0 or follow recommended instruction timing.
+	2.	Write 0x05 to RTC0ADR. This selects the internal RTC0CN register at SmaRTClock Address 0x05.
+	3.	Write 0x00 to RTC0DAT. This operation writes 0x00 to the internal RTC0CN register.
+A SmaRTClock Read operation is initiated by setting the SmaRTClock Interface Busy bit. This transfers the contents of the internal register selected by RTC0ADR to RTC0DAT. The transferred data will remain in RTC0DAT until the next read or write operation. Below is an example of reading a SmaRTClock internal register.
+	1.	Poll BUSY (RTC0ADR.7) until it returns 0 or follow recommended instruction timing.
+	2.	Write 0x05 to RTC0ADR. This selects the internal RTC0CN register at SmaRTClock Address 0x05.
+	3.	Write 1 to BUSY. This initiates the transfer of data from RTC0CN to RTC0DAT.
+	4.	Poll BUSY (RTC0ADR.7) until it returns 0 or follow recommend instruction timing.
+	5.	Read data from RTC0DAT. This data is a copy of the RTC0CN register. 
+
+Note:	The RTC0ADR and RTC0DAT registers will retain their state upon a device reset.
+20.1.3.	RTC0ADR Short Strobe Feature
+Reads and writes to indirect SmaRTClock registers normally take 7 system clock cycles. To minimize the indirect register access time, the Short Strobe feature decreases the read and write access time to 6 system clocks. The Short Strobe feature is automatically enabled on reset and can be manually enabled/disabled using the SHORT (RTC0ADR.4) control bit.
+Recommended Instruction Timing for a single register read with short strobe enabled:
+mov RTC0ADR, #095h
+nop
+nop
+nop
+mov A, RTC0DAT
+
+Recommended Instruction Timing for a single register write with short strobe enabled:
+mov RTC0ADR, #095h
+mov RTC0DAT, #000h
+nop
+
+20.1.4.	SmaRTClock Interface Autoread Feature
+When Autoread is enabled, each read from RTC0DAT initiates the next indirect read operation on the SmaRTClock internal register selected by RTC0ADR. Software should set the BUSY bit once at the beginning of each series of consecutive reads. Software should follow recommended instruction timing or check if the SmaRTClock Interface is busy prior to reading RTC0DAT. Autoread is enabled by setting AUTORD (RTC0ADR.6) to logic 1.
+20.1.5.	RTC0ADR Autoincrement Feature
+For ease of reading and writing the 32-bit CAPTURE and ALARM values, RTC0ADR automatically increments after each read or write to a CAPTUREn or ALARMn register. This speeds up the process of setting an alarm or reading the current SmaRTClock timer value. Autoincrement is always enabled.
+Recommended Instruction Timing for a multi-byte register read with short strobe and autoread enabled:
+mov RTC0ADR, #0d0h
+nop
+nop
+nop
+mov A, RTC0DAT
+nop
+nop
+mov A, RTC0DAT
+nop
+nop
+mov A, RTC0DAT
+nop
+nop
+mov A, RTC0DAT
+
+Recommended Instruction Timing for a multi-byte register write with short strobe enabled:
+mov RTC0ADR, #010h
+mov RTC0DAT, #05h
+nop
+mov RTC0DAT, #06h
+nop
+mov RTC0DAT, #07h
+nop
+mov RTC0DAT, #08h
+nop
+
+
+SFR Definition 20.1. RTC0KEY: SmaRTClock Lock and Key
+Bit	7	6	5	4	3	2	1	0
+Name	RTC0ST[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xAE
+Bit	Name	Function		
+7:0	RTC0ST	SmaRTClock Interface Lock/Key and Status. 
+Locks/unlocks the SmaRTClock interface when written. Provides lock status when read.
+
+	Read:
+	0x00: SmaRTClock Interface is locked.
+	0x01: SmaRTClock Interface is locked.
+	First key code (0xA5) has been written, waiting for second key code.
+	0x02: SmaRTClock Interface is unlocked. 
+	First and second key codes (0xA5, 0xF1) have been written.
+	0x03: SmaRTClock Interface is disabled until the next system reset.
+
+	Write:
+	When RTC0ST = 0x00 (locked), writing 0xA5 followed by 0xF1 unlocks the SmaRTClock Interface.
+	
+	When RTC0ST = 0x01 (waiting for second key code), writing any value other than the second key code (0xF1) will change RTC0STATE to 0x03 and disable the SmaRTClock Interface until the next system reset.
+	
+	When RTC0ST = 0x02 (unlocked), any write to RTC0KEY will lock the SmaRTClock Interface.
+	
+	When RTC0ST = 0x03 (disabled), writes to RTC0KEY have no effect.		
+
+
+SFR Definition 20.2. RTC0ADR: SmaRTClock Address
+Bit	7	6	5	4	3	2	1	0
+Name	BUSY	AUTORD		SHORT	ADDR[3:0]			
+Type	R/W	R/W	R	R/W	R/W			
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xAC 
+Bit	Name	Function		
+7	BUSY	SmaRTClock Interface Busy Indicator.
+Indicates SmaRTClock interface status. Writing 1 to this bit initiates an indirect read.		
+6	AUTORD	SmaRTClock Interface Autoread Enable. 
+Enables/disables Autoread.
+0: Autoread Disabled.
+1: Autoread Enabled.		
+5	Unused	Unused. Read = 0b; Write = Don’t Care.		
+4	SHORT	Short Strobe Enable. 
+Enables/disables the Short Strobe Feature.
+0: Short Strobe disabled.
+1: Short Strobe enabled.		
+3:0	ADDR[3:0]	SmaRTClock Indirect Register Address.
+Sets the currently selected SmaRTClock register.
+See Table 20.1 for a listing of all SmaRTClock indirect registers.		
+Note:	The ADDR bits increment after each indirect read/write operation that targets a CAPTUREn or ALARMn internal SmaRTClock register.				
+
+
+SFR Definition 20.3. RTC0DAT: SmaRTClock Data
+Bit	7	6	5	4	3	2	1	0
+Name	RTC0DAT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page= 0x0; SFR Address = 0xAD 
+Bit	Name	Function		
+7:0	RTC0DAT	SmaRTClock Data Bits. 
+Holds data transferred to/from the internal SmaRTClock register selected by RTC0ADR.		
+Note:	Read-modify-write instructions (orl, anl, etc.) should not be used on this register.				
+
+
+20.2.	SmaRTClock Clocking Sources
+The SmaRTClock peripheral is clocked from its own timebase, independent of the system clock. The SmaRTClock timebase is derived from the SmaRTClock oscillator circuit, which has two modes of operation: Crystal Mode, and Self-Oscillate Mode. The oscillation frequency is 32.768 kHz in Crystal Mode and can be programmed in the range of 10 kHz to 40 kHz in Self-Oscillate Mode. The frequency of the SmaRTClock oscillator can be measured with respect to another oscillator using an on-chip timer. See Section “25. Timers” on page 283 for more information on how this can be accomplished.
+Note: The SmaRTClock timebase can be selected as the system clock and routed to a port pin. See Section “19. Clocking Sources” on page 191 for information on selecting the system clock source and Section “21. Port Input/Output” on page 216 for information on how to route the system clock to a port pin.
+20.2.1.	Using the SmaRTClock Oscillator with a Crystal or External CMOS Clock
+When using crystal mode, a 32.768 kHz crystal should be connected between XTAL3 and XTAL4. No other external components are required. The following steps show how to start the SmaRTClock crystal oscillator in software:
+	1.	Set SmaRTClock to Crystal Mode (XMODE = 1).
+	2.	Disable Automatic Gain Control (AGCEN) and enable Bias Doubling (BIASX2) for fast crystal startup.
+	3.	Set the desired loading capacitance (RTC0XCF).
+	4.	Enable power to the SmaRTClock oscillator circuit (RTC0EN = 1).
+	5.	Wait 20 ms.
+	6.	Poll the SmaRTClock Clock Valid Bit (CLKVLD) until the crystal oscillator stabilizes.
+	7.	Poll the SmaRTClock Load Capacitance Ready Bit (LOADRDY) until the load capacitance reaches its programmed value.
+	8.	Enable Automatic Gain Control (AGCEN) and disable Bias Doubling (BIASX2) for maximum power savings.
+	9.	Enable the SmaRTClock missing clock detector.
+	10.	Wait 2 ms.
+	11.	Clear the PMU0CF wake-up source flags.
+
+In crystal mode, the SmaRTClock oscillator may be driven by an external CMOS clock. The CMOS clock should be applied to XTAL3. XTAL4 should be left floating. The input low voltage (VIL) and input high voltage (VIH) for XTAL3 when used with an external CMOS clock are 0.1 and 0.8 V, respectively. The SmaRTClock oscillator should be configured to its lowest bias setting with AGC disabled. The CLKVLD bit is indeterminate when using a CMOS clock, however, the OSCFAIL bit may be checked 2 ms after SmaRTClock oscillator is powered on to ensure that there is a valid clock on XTAL3.
+20.2.2.	Using the SmaRTClock Oscillator in Self-Oscillate Mode
+When using Self-Oscillate Mode, the XTAL3 and XTAL4 pins should be shorted together. The RTC0PIN register can be used to internally short XTAL3 and XTAL4. The following steps show how to configure SmaRTClock for use in Self-Oscillate Mode:
+	1.		Set SmaRTClock to Self-Oscillate Mode (XMODE = 0).
+	2.		Set the desired oscillation frequency:
+				For oscillation at about 20 kHz, set BIASX2 = 0.
+		For oscillation at about 40 kHz, set BIASX2 = 1.
+	3.	The oscillator starts oscillating instantaneously.
+	4.	Fine tune the oscillation frequency by adjusting the load capacitance (RTC0XCF).
+20.2.3.	Programmable Load Capacitance
+The programmable load capacitance has 16 values to support crystal oscillators with a wide range of recommended load capacitance. If Automatic Load Capacitance Stepping is enabled, the crystal load capacitors start at the smallest setting to allow a fast startup time, then slowly increase the capacitance until the final programmed value is reached. The final programmed loading capacitor value is specified using the LOADCAP bits in the RTC0XCF register. The LOADCAP setting specifies the amount of on-chip load capacitance and does not include any stray PCB capacitance. Once the final programmed loading capacitor value is reached, the LOADRDY flag will be set by hardware to logic 1.
+When using the SmaRTClock oscillator in Self-Oscillate mode, the programmable load capacitance can be used to fine tune the oscillation frequency. In most cases, increasing the load capacitor value will result in a decrease in oscillation frequency. Table 20.2 shows the crystal load capacitance for various settings of LOADCAP.
+
+Table 20.2. SmaRTClock Load Capacitance Settings
+LOADCAP	Crystal Load Capacitance	Equivalent Capacitance seen on XTAL3 and XTAL4
+0000	4.0 pF	 8.0 pF
+0001	4.5 pF	9.0 pF
+0010	5.0 pF	10.0 pF
+0011	5.5 pF	11.0 pF
+0100	6.0 pF	12.0 pF
+0101	6.5 pF	13.0 pF
+0110	7.0 pF	14.0 pF
+0111	7.5 pF	15.0 pF
+1000	8.0 pF	16.0 pF
+1001	8.5 pF	17.0 pF
+1010	9.0 pF	18.0 pF
+1011	9.5 pF	19.0 pF
+1100	10.5 pF	 21.0 pF
+1101	11.5 pF	23.0 pF
+1110	12.5 pF	25.0 pF
+1111	13.5 pF	27.0 pF
+
+20.2.4.	Automatic Gain Control (Crystal Mode Only) and SmaRTClock Bias Doubling
+Automatic Gain Control allows the SmaRTClock oscillator to trim the oscillation amplitude of a crystal in order to achieve the lowest possible power consumption. Automatic Gain Control automatically detects when the oscillation amplitude has reached a point where it safe to reduce the drive current, therefore, it may be enabled during crystal startup. It is recommended to enable Automatic Gain Control in most systems which use the SmaRTClock oscillator in Crystal Mode. The following are recommended crystal specifications and operating conditions when Automatic Gain Control is enabled:
+•	ESR < 50 kW
+•	Load Capacitance < 10 pF 
+•	Supply Voltage < 3.0 V
+•	Temperature > –20 °C 
+When using Automatic Gain Control, it is recommended to perform an oscillation robustness test to ensure that the chosen crystal will oscillate under the worst case condition to which the system will be exposed. The worst case condition that should result in the least robust oscillation is at the following system conditions: lowest temperature, highest supply voltage, highest ESR, highest load capacitance, and lowest bias current (AGC enabled, Bias Double Disabled).
+To perform the oscillation robustness test, the SmaRTClock oscillator should be enabled and selected as the system clock source. Next, the SYSCLK signal should be routed to a port pin configured as a push-pull digital output. The positive duty cycle of the output clock can be used as an indicator of oscillation robustness. As shown in Figure 20.2, duty cycles less than 55% indicate a robust oscillation. As the duty cycle approaches 60%, oscillation becomes less reliable and the risk of clock failure increases. Increasing the bias current (by disabling AGC) will always improve oscillation robustness and will reduce the output clock’s duty cycle. This test should be performed at the worst case system conditions, as results at very low temperatures or high supply voltage will vary from results taken at room temperature or low supply voltage.
+
+Figure 20.2. Interpreting Oscillation Robustness (Duty Cycle) Test Results
+As an alternative to performing the oscillation robustness test, Automatic Gain Control may be disabled at the cost of increased power consumption (approximately 200 nA). Disabling Automatic Gain Control will provide the crystal oscillator with higher immunity against external factors which may lead to clock failure. Automatic Gain Control must be disabled if using the SmaRTClock oscillator in self-oscillate mode.
+Table 20.3 shows a summary of the oscillator bias settings. The SmaRTClock Bias Doubling feature allows the self-oscillation frequency to be increased (almost doubled) and allows a higher crystal drive strength in crystal mode. High crystal drive strength is recommended when the crystal is exposed to poor environmental conditions such as excessive moisture. SmaRTClock Bias Doubling is enabled by setting BIASX2 (RTC0XCN.5) to 1.
+.
+Table 20.3. SmaRTClock Bias Settings 
+Mode	Setting	Power Consumption
+Crystal	Bias Double Off, AGC On	Lowest
+600 nA 
+	Bias Double Off, AGC Off	Low
+800 nA
+	Bias Double On, AGC On	High
+	Bias Double On, AGC Off	Highest
+Self-Oscillate	Bias Double Off	Low
+	Bias Double On	High
+
+
+20.2.5.	Missing SmaRTClock Detector
+The missing SmaRTClock detector is a one-shot circuit enabled by setting MCLKEN (RTC0CN.6) to 1. When the SmaRTClock Missing Clock Detector is enabled, OSCFAIL (RTC0CN.5) is set by hardware if SmaRTClock oscillator remains high or low for more than 100 µs. 
+A SmaRTClock Missing Clock detector timeout can trigger an interrupt, wake the device from a low power mode, or reset the device. See Section “12. Interrupt Handler” on page 136, Section “14. Power Management” on page 159, and Section “18. Reset Sources” on page 184 for more information.
+Note:	The SmaRTClock Missing Clock Detector should be disabled when making changes to the oscillator settings in RTC0XCN.
+20.2.6.	SmaRTClock Oscillator Crystal Valid Detector
+The SmaRTClock oscillator crystal valid detector is an oscillation amplitude detector circuit used during crystal startup to determine when oscillation has started and is nearly stable. The output of this detector can be read from the CLKVLD bit (RTX0XCN.4). 
+Notes:
+•	The CLKVLD bit has a blanking interval of 2 ms. During the first 2 ms after turning on the crystal oscillator, the output of CLKVLD is not valid.
+•	This SmaRTClock crystal valid detector (CLKVLD) is not intended for detecting an oscillator failure. The missing SmaRTClock detector (CLKFAIL) should be used for this purpose.
+20.3.	SmaRTClock Timer and Alarm Function
+The SmaRTClock timer is a 32-bit counter that, when running (RTC0TR = 1), is incremented every SmaRTClock oscillator cycle. The timer has an alarm function that can be set to generate an interrupt, wake the device from a low power mode, or reset the device at a specific time. See Section “12. Interrupt Handler” on page 136, Section “14. Power Management” on page 159, and Section “18. Reset Sources” on page 184 for more information.
+The SmaRTClock timer includes an Auto Reset feature, which automatically resets the timer to zero one SmaRTClock cycle after an alarm occurs. When using Auto Reset, the Alarm match value should always be set to 1 count less than the desired match value. Auto Reset can be enabled by writing a 1 to ALRM (RTC0CN.2).
+20.3.1.	Setting and Reading the SmaRTClock Timer Value
+The 32-bit SmaRTClock timer can be set or read using the six CAPTUREn internal registers. Note that the timer does not need to be stopped before reading or setting its value. The following steps can be used to set the timer value:
+	1.	Write the desired 32-bit set value to the CAPTUREn registers.
+	2.	Write 1 to RTC0SET. This will transfer the contents of the CAPTUREn registers to the SmaRTClock timer.
+	3.	Operation is complete when RTC0SET is cleared to 0 by hardware. 
+The following steps can be used to read the current timer value:
+	1.	Write 1 to RTC0CAP. This will transfer the contents of the timer to the CAPTUREn registers.
+	2.	Poll RTC0CAP until it is cleared to 0 by hardware.
+	3.	A snapshot of the timer value can be read from the CAPTUREn registers
+20.3.2.	Setting a SmaRTClock Alarm
+The SmaRTClock alarm function compares the 32-bit value of SmaRTClock Timer to the value of the ALARMn registers. An alarm event is triggered if the SmaRTClock timer is equal to the ALARMn registers. If Auto Reset is enabled, the 32-bit timer will be cleared to zero one SmaRTClock cycle after the alarm event.
+The SmaRTClock alarm event can be configured to reset the MCU, wake it up from a low power mode, or generate an interrupt. See Section “12. Interrupt Handler” on page 136, Section “14. Power Management” on page 159, and Section “18. Reset Sources” on page 184 for more information.
+The following steps can be used to set up a SmaRTClock Alarm:
+	1.	Disable SmaRTClock Alarm Events (RTC0AEN = 0).
+	2.	Set the ALARMn registers to the desired value.
+	3.	Enable SmaRTClock Alarm Events (RTC0AEN = 1).
+
+Notes:
+•	The ALRM bit, which is used as the SmaRTClock Alarm Event flag, is cleared by disabling SmaRTClock Alarm Events (RTC0AEN = 0). 
+•	If AutoReset is disabled, disabling (RTC0AEN = 0) then Re-enabling Alarm Events (RTC0AEN = 1) after a SmaRTClock Alarm without modifying ALARMn registers will automatically schedule the next alarm after 2^32 SmaRTClock cycles (approximately 36 hours using a 32.768 kHz crystal).
+•	The SmaRTClock Alarm Event flag will remain asserted for a maximum of one SmaRTClock cycle. See Section “14. Power Management” on page 159 for information on how to capture a SmaRTClock Alarm event using a flag which is not automatically cleared by hardware.
+20.3.3.	Software Considerations for using the SmaRTClock Timer and Alarm
+The SmaRTClock timer and alarm have two operating modes to suit varying applications. The two modes are described below:
+Mode 1:
+The first mode uses the SmaRTClock timer as a perpetual timebase which is never reset to zero. Every 36 hours, the timer is allowed to overflow without being stopped or disrupted. The alarm interval is software managed and is added to the ALRMn registers by software after each alarm. This allows the alarm match value to always stay ahead of the timer by one software managed interval. If software uses 32-bit unsigned addition to increment the alarm match value, then it does not need to handle overflows since both the timer and the alarm match value will overflow in the same manner.
+This mode is ideal for applications which have a long alarm interval (e.g. 24 or 36 hours) and/or have a need for a perpetual timebase. An example of an application that needs a perpetual timebase is one whose wake-up interval is constantly changing. For these applications, software can keep track of the number of timer overflows in a 16-bit variable, extending the 32-bit (36 hour) timer to a 48-bit (272 year) perpetual timebase.
+Mode 2:
+The second mode uses the SmaRTClock timer as a general purpose up counter which is auto reset to zero by hardware after each alarm. The alarm interval is managed by hardware and stored in the ALRMn registers. Software only needs to set the alarm interval once during device initialization. After each alarm, software should keep a count of the number of alarms that have occurred in order to keep track of time.
+This mode is ideal for applications that require minimal software intervention and/or have a fixed alarm interval. This mode is the most power efficient since it requires less CPU time per alarm.
+
+
+SFR Definition 20.4. RTC0CN: SmaRTClock Control
+Bit	7	6	5	4	3	2	1	0
+Name	RTC0EN	MCLKEN	OSCFAIL	RTC0TR	RTC0AEN	ALRM	RTC0SET	RTC0CAP
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	Varies	0	0	0	0	0
+
+SmaRTClock Address = 0x04
+Bit	Name	Function		
+7	RTC0EN	SmaRTClock Enable. 
+Enables/disables the SmaRTClock oscillator and associated bias currents.
+0: SmaRTClock oscillator disabled.
+1: SmaRTClock oscillator enabled.		
+6	MCLKEN	Missing SmaRTClock Detector Enable.
+Enables/disables the missing SmaRTClock detector.
+0: Missing SmaRTClock detector disabled.
+1: Missing SmaRTClock detector enabled.		
+5	OSCFAIL	SmaRTClock Oscillator Fail Event Flag.
+Set by hardware when a missing SmaRTClock detector timeout occurs. Must be cleared by software. The value of this bit is not defined when the SmaRTClock 
+oscillator is disabled.		
+4	RTC0TR	SmaRTClock Timer Run Control. 
+Controls if the SmaRTClock timer is running or stopped (holds current value).
+0: SmaRTClock timer is stopped.
+1: SmaRTClock timer is running.		
+3	RTC0AEN	SmaRTClock Alarm Enable.
+Enables/disables the SmaRTClock alarm function. Also clears the ALRM flag.
+0: SmaRTClock alarm disabled.
+1: SmaRTClock alarm enabled.		
+2	ALRM	SmaRTClock Alarm Event Flag and Auto Reset Enable
+Reads return the state of the alarm event flag.
+Writes enable/disable the 
+Auto Reset function.	Read:
+0: SmaRTClock alarm event flag is de-asserted.
+1: SmaRTClock alarm event flag is asserted.	Write:
+0: Disable Auto Reset.
+1: Enable Auto Reset.
+1	RTC0SET	SmaRTClock Timer Set.
+Writing 1 initiates a SmaRTClock timer set operation. This bit is cleared to 0 by hardware to indicate that the timer set operation is complete.		
+0	RTC0CAP	SmaRTClock Timer Capture.
+Writing 1 initiates a SmaRTClock timer capture operation. This bit is cleared to 0 by hardware to indicate that the timer capture operation is complete.		
+Note:	The ALRM flag will remain asserted for a maximum of one SmaRTClock cycle. See Section “Power Management” on page 159 for information on how to capture a SmaRTClock Alarm event using a flag which is not automatically cleared by hardware.				
+
+
+SFR Definition 20.5. RTC0XCN: SmaRTClock Oscillator Control
+Bit	7	6	5	4	3	2	1	0
+Name	AGCEN	XMODE	BIASX2	CLKVLD				
+Type	R/W	R/W	R/W	R	R	R	R	R
+Reset	0	0	0	0	0	0	0	0
+
+SmaRTClock Address = 0x05
+Bit	Name	Function		
+7	AGCEN	SmaRTClock Oscillator Automatic Gain Control (AGC) Enable.
+0: AGC disabled.
+1: AGC enabled.		
+6	XMODE	SmaRTClock Oscillator Mode. 
+Selects Crystal or Self Oscillate Mode.
+0: Self-Oscillate Mode selected.
+1: Crystal Mode selected.		
+5	BIASX2	SmaRTClock Oscillator Bias Double Enable. 
+Enables/disables the Bias Double feature.
+0: Bias Double disabled.
+1: Bias Double enabled.		
+4	CLKVLD	SmaRTClock Oscillator Crystal Valid Indicator. 
+Indicates if oscillation amplitude is sufficient for maintaining oscillation.
+0: Oscillation has not started or oscillation amplitude is too low to maintain oscillation.
+1: Sufficient oscillation amplitude detected.		
+3:0	Unused	Unused. 
+Read = 0000b; Write = Don’t Care.		
+
+
+SFR Definition 20.6. RTC0XCF: SmaRTClock Oscillator Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	AUTOSTP	LOADRDY			LOADCAP			
+Type	R/W	R	R	R	R/W			
+Reset	0	0	0	0	Varies	Varies	Varies	Varies
+
+SmaRTClock Address = 0x06
+Bit	Name	Function		
+7	AUTOSTP	Automatic Load Capacitance Stepping Enable.
+Enables/disables automatic load capacitance stepping. 
+0: Load capacitance stepping disabled.
+1: Load capacitance stepping enabled.		
+6	LOADRDY	Load Capacitance Ready Indicator. 
+Set by hardware when the load capacitance matches the programmed value.
+0: Load capacitance is currently stepping.
+1: Load capacitance has reached it programmed value.		
+5:4	Unused	Unused. 
+Read = 00b; Write = Don’t Care.		
+3:0	LOADCAP	Load Capacitance Programmed Value.
+Holds the user’s desired value of the load capacitance. See Table 20.2 on page 207.		
+
+
+SFR Definition 20.7. RTC0PIN: SmaRTClock Pin Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	RTC0PIN							
+Type	W							
+Reset	0	1	1	0	0	1	1	1
+
+SmaRTClock Address = 0x07
+Bit	Name	Function		
+7:0	RTC0PIN	SmaRTClock Pin Configuration.
+Writing 0xE7 to this register forces XTAL3 and XTAL4 to be internally shorted for use with Self Oscillate Mode.
+Writing 0x67 returns XTAL3 and XTAL4 to their normal configuration.		
+
+
+Internal Register Definition 20.8. CAPTUREn: SmaRTClock Timer Capture
+Bit	7	6	5	4	3	2	1	0
+Name	CAPTURE[31:0]							
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SmaRTClock Addresses: CAPTURE0 = 0x00; CAPTURE1 = 0x01; CAPTURE2 =0x02; CAPTURE3: 0x03.
+Bit	Name	Function		
+7:0	CAPTURE[31:0]	SmaRTClock Timer Capture. 
+These 4 registers (CAPTURE3–CAPTURE0) are used to read or set the 32-bit SmaRTClock timer. Data is transferred to or from the SmaRTClock timer when the RTC0SET or RTC0CAP bits are set.		
+Note:	The least significant bit of the timer capture value is in CAPTURE0.0.				
+
+
+Internal Register Definition 20.9. ALARMn: SmaRTClock Alarm Programmed Value
+Bit	7	6	5	4	3	2	1	0
+Name	ALARM[31:0]							
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SmaRTClock Addresses: ALARM0 = 0x08; ALARM1 = 0x09; ALARM2 = 0x0A; ALARM3 = 0x0B
+Bit	Name	Function		
+7:0	ALARM[31:0]	SmaRTClock Alarm Programmed Value. 
+These 4 registers (ALARM3–ALARM0) are used to set an alarm event for the SmaRTClock timer. The SmaRTClock alarm should be disabled (RTC0AEN=0) when updating these registers.		
+Note:	The least significant bit of the alarm programmed value is in ALARM0.0.				
+
+

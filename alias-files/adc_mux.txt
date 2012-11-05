@@ -1,0 +1,43 @@
+﻿5.5.	ADC0 Analog Multiplexer
+ADC0 on C8051F93x-C8051F92x has an analog multiplexer, referred to as AMUX0.
+AMUX0 selects the positive inputs to the single-ended ADC0. Any of the following may be selected as the positive input: Port I/O pins, the on-chip temperature sensor, the VBAT Power Supply, Regulated Digital Supply Voltage (Output of VREG0), VDD/DC+ Supply, or the positive input may be connected to GND. The ADC0 input channels are selected in the ADC0MX register described in SFR Definition 5.12.
+
+Figure 5.7. ADC0 Multiplexer Block Diagram
+Important Note About ADC0 Input Configuration: Port pins selected as ADC0 inputs should be configured as analog inputs, and should be skipped by the Digital Crossbar. To configure a Port pin for analog input, set to 0 the corresponding bit in register PnMDIN and disable the digital driver (PnMDOUT = 0 and Port Latch = 1). To force the Crossbar to skip a Port pin, set to 1 the corresponding bit in register PnSKIP. See Section “21. Port Input/Output” on page 216 for more Port I/O configuration details.
+
+SFR Definition 5.12. ADC0MX: ADC0 Input Channel Select
+Bit	7	6	5	4	3	2	1	0
+Name				AD0MX				
+Type	R	R	R	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0xBB
+Bit	Name	Function			
+7:5	Unused	Unused.
+Read = 000b; Write = Don’t Care.			
+4:0	AD0MX	AMUX0 Positive Input Selection.
+Selects the positive input channel for ADC0.			
+		00000:	P0.0	10000:	P2.0 (C8051F920/30 Only)
+		00001:	P0.1	10001:	P2.1 (C8051F920/30 Only)
+		00010:	P0.2	10010:	P2.2 (C8051F920/30 Only)
+		00011:	P0.3	10011:	P2.3 (C8051F920/30 Only)
+		00100:	P0.4	10100:	P2.4 (C8051F920/30 Only)
+		00101:	P0.5	10101:	P2.5 (C8051F920/30 Only)
+		00110:	P0.6	10110:	P2.6 (C8051F920/30 Only)
+		00111:	P0.7	10111:	Reserved.
+		01000:	P1.0	11000:	Reserved.
+		01001:	P1.1	11001:	Reserved.
+		01010:	P1.2	11010:	Reserved.
+		01011:	P1.3	11011:	Temperature Sensor*
+		01100:	P1.4	11100: 	VBAT Supply Voltage
+(0.9–1.8 V) or (1.8–3.6 V)
+		01101:	P1.5		
+		01110:	P1.6	11101:	Digital Supply Voltage
+(VREG0 Output, 1.7 V Typical)
+		01111:	P1.7 (C8051F920/30 Only)		
+				11110:	VDD/DC+ Supply Voltage
+(1.8–3.6 V)
+				11111:	Ground
+*Note:	 Before switching the ADC multiplexer from another channel to the temperature sensor, the ADC mux should select the 'Ground' channel as an intermediate step. The intermediate 'Ground' channel selection step will discharge any voltage on the ADC sampling capacitor from the previous channel selection. This will prevent the possibility of a high voltage (> 2V) being presented to the temperature sensor circuit, which can otherwise impact its long-term reliability.					
+
+

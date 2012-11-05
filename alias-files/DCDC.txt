@@ -1,0 +1,152 @@
+﻿DC-DC Converter
+Enabled
+0.9 to 1.8 V 
+Supply Voltage
+(one-cell mode)
+DC-DC Converter
+Disabled
+1.8 to 3.6 V 
+Supply Voltage
+(two-cell mode)
+16.	On-Chip DC-DC Converter (DC0)
+C8051F93x-C8051F92x devices include an on-chip dc-dc converter to allow operation from a single cell battery with a supply voltage as low as 0.9 V. The dc-dc converter is a switching boost converter with an input voltage range of 0.9 to 1.8 V and a programmable output voltage range of 1.8 to 3.3 V. The default output voltage is 1.9 V. The dc-dc converter can supply the system with up to 65 mW of regulated power (or up to 100 mW in some applications) and can be used for powering other devices in the system. This allows the most flexibility when interfacing to sensors and other analog signals which typically require a higher supply voltage than a single-cell battery can provide.
+Figure 16.1 shows a block diagram of the dc-dc converter. During normal operation in the first half of the switching cycle, the Duty Cycle Control switch is closed and the Diode Bypass switch is open. Since the output voltage is higher than the voltage at the DCEN pin, no current flows through the diode and the load is powered from the output capacitor. During this stage, the DCEN pin is connected to ground through the Duty Cycle Control switch, generating a positive voltage across the inductor and forcing its current to ramp up. 
+In the second half of the switching cycle, the Duty Cycle control switch is opened and the Diode Bypass switch is closed. This connects DCEN directly to VDD/DC+ and forces the inductor current to charge the output capacitor. Once the inductor transfers its stored energy to the output capacitor, the Duty Cycle Control switch is closed, the Diode Bypass switch is opened, and the cycle repeats.
+The dc-dc converter has a built in voltage reference and oscillator, and will automatically limit or turn off the switching activity in case the peak inductor current rises beyond a safe limit or the output voltage rises above the programmed target value. This allows the dc-dc converter output to be safely overdriven by a secondary power source (when available) in order to preserve battery life. The dc-dc converter’s settings can be modified using SFR registers which provide the ability to change the target output voltage, oscillator frequency or source, Diode Bypass switch resistance, peak inductor current, and minimum duty cycle.
+
+Figure 16.1. DC-DC Converter Block Diagram
+16.1.	Startup Behavior
+On initial power-on, the dc-dc converter outputs a constant 50% duty cycle until there is sufficient voltage on the output capacitor to maintain regulation. The size of the output capacitor and the amount of load current present during startup will determine the length of time it takes to charge the output capacitor.
+During initial power-on reset, the maximum peak inductor current threshold, which triggers the overcurrent protection circuit, is set to approximately 125 mA. This generates a “soft-start” to limit the output voltage slew rate and prevent excessive in-rush current at the output capacitor. In order to ensure reliable startup of the dc-dc converter, the following restrictions have been imposed:
+•	The maximum dc load current allowed during startup is given in Table 4.14 on page 66. If the dc-dc converter is powering external sensors or devices through the VDD/DC+ pin or through GPIO pins, then the current supplied to these sensors or devices is counted towards this limit. The in-rush current into capacitors does not count towards this limit.
+
+•	The maximum total output capacitance is given in Table 4.14 on page 66. This value includes the required 1 µF ceramic output capacitor and any additional capacitance connected to the VDD/DC+ pin.
+
+Once initial power-on is complete, the peak inductor current limit can be increased by software as shown in Table 16.1. Limiting the peak inductor current can allow the device to start up near the battery’s end of life.
+.
+Table 16.1. IPeak Inductor Current Limit Settings
+SWSEL	ILIMIT	Peak Current (mA)
+1	0	100
+0	0	125
+1	1	250
+0	1	500
+
+The peak inductor current is dependent on several factors including the dc load current and can be estimated using following equation:
+
+efficiency = 0.80
+inductance = 0.68 µH
+frequency = 2.4 MHz
+
+16.2.	High Power Applications
+The dc-dc converter is designed to provide the system with 65 mW of output power, however, it can safely provide up to 100 mW of output power without any risk of damage to the device. For high power applications, the system should be carefully designed to prevent unwanted VBAT and VDD/DC+ Supply Monitor resets, which are more likely to occur when the dc-dc converter output power exceeds 65mW. In addition, output power above 65 mW causes the dc-dc converter to have relaxed output regulation, high output ripple and more analog noise. At high output power, an inductor with low DC resistance should be chosen in order to minimize power loss and maximize efficiency.
+The combination of high output power and low input voltage will result in very high peak and average inductor currents. If the power supply has a high internal resistance, the transient voltage on the VBAT terminal could drop below 0.9 V and trigger a VBAT Supply Monitor Reset, even if the open-circuit voltage is well above the 0.9 V threshold. While this problem is most often associated with operation from very small batteries or batteries that are near the end of their useful life, it can also occur when using bench power supplies that have a slow transient response; the supply’s display may indicate a voltage above 0.9 V, but the minimum voltage on the VBAT pin may be lower. A similar problem can occur at the output of the dc-dc converter: using the default low current limit setting (125 mA) can trigger VDD Supply Monitor resets if there is a high transient load current, particularly if the programmed output voltage is at or near 1.8 V. 
+16.3.	Pulse Skipping Mode
+The dc-dc converter allows the user to set the minimum pulse width such that if the duty cycle needs to decrease below a certain width in order to maintain regulation, an entire "clock pulse" will be skipped.
+Pulse skipping can provide substantial power savings, particularly at low values of load current. The converter will continue to maintain a minimum output voltage at its programmed value when pulse skipping is employed, though the output voltage ripple can be higher. Another consideration is that the dc-dc will operate with pulse-frequency modulation rather than pulse-width modulation, which makes the switching frequency spectrum less predictable; this could be an issue if the dc-dc converter is used to power a radio. Figure 4.5 and Figure 4.6 on page 52 and 53 show the effect of pulse skipping on power consumption.
+16.4.	Enabling the DC-DC Converter
+On power-on reset, the state of the DCEN pin is sampled to determine if the device will power up in one-cell or two-cell mode. In two-cell mode, the dc-dc converter always remains disabled. In one-cell mode, the dc-dc converter remains disabled in Sleep Mode, and enabled in all other power modes. See Section “14. Power Management” on page 159 for complete details on available power modes.
+The dc-dc converter is enabled (one-cell mode) in hardware by placing a 0.68 µH inductor between DCEN and VBAT. The dc-dc converter is disabled (two-cell mode) by shorting DCEN directly to GND. The DCEN pin should never be left floating. Note that the device can only switch between one-cell and two-cell mode during a power-on reset. See Section “18. Reset Sources” on page 184 for more information regarding reset behavior.
+Figure 16.2 shows the two dc-dc converter configuration options. 
+
+Figure 16.2. DC-DC Converter Configuration Options
+When the dc-dc converter “Enabled” configuration (one-cell mode) is chosen, the following guidelines apply:
+•	In most cases, the GND/DC– pin should not be externally connected to GND. 
+•	The 0.68 µH inductor should be placed as close as possible to the DCEN pin for maximum efficiency. 
+•	The 4.7 µF capacitor should be placed as close as possible to the inductor. 
+•	The current loop including GND, the 4.7 µF capacitor, the 0.68 µH inductor and the DCEN pin should be made as short as possible.
+•	The PCB traces connecting VDD/DC+ to the output capacitor and the output capacitor to GND/DC– should be as short and as thick as possible in order to minimize parasitic inductance. 
+16.5.	Minimizing Power Supply Noise
+To minimize noise on the power supply lines, the GND and GND/DC- pins should be kept separate, as shown in Figure 16.2; one or the other should be connected to the pc board ground plane. For applications in which the dc-dc converter is used only to power internal circuits, the GND pin is normally connected to the board ground. 
+The large decoupling capacitors in the input and output circuits ensure that each supply is relatively quiet with respect to its own ground. However, connecting a circuit element "diagonally" (e.g. connecting an external chip between VDD/DC+ and GND, or between VBAT and GND/DC-) can result in high supply noise across that circuit element. For applications in which the dc-dc converter is used to power external analog circuitry, it is recommended to connect the GND/DC– pin to the board ground and connect the battery’s negative terminal to the GND pin only, which is not connected to board ground.
+To accommodate situations in which ADC0 is sampling a signal that is referenced to one of the external grounds, we recommend using the Analog Ground Reference (P0.1/AGND) option described in Section 5.12. This option prevents any voltage differences between the internal chip ground and the external grounds from modulating the ADC input signal. If this option is enabled, the P0.1 pin should be tied to the ground reference of the external analog input signal. When using the ADC with the dc-dc converter, we also recommend enabling the SYNC bit in the DC0CN register to minimize interference.
+These general guidelines provide the best performance in most applications, though some situations may benefit from experimentation to eliminate any residual noise issues. Examples might include tying the grounds together, using additional low-inductance decoupling caps in parallel with the recommended ones, investigating the effects of different dc-dc converter settings, etc.
+16.6.	Selecting the Optimum Switch Size
+The dc-dc converter has two built-in switches (the diode bypass switch and duty cycle control switch). To maximize efficiency, one of two switch sizes may be selected. The large switches are ideal for carrying high currents and the small switches are ideal for low current applications. The ideal switchover point to switch from the small switches to the large switches varies with the programmed output voltage. At an output voltage of 2 V, the ideal switchover point is at approximately 4 mA total output current. At an output voltage of 3 V, the ideal switchover point is at approximately 8 mA total output current.
+16.7.	DC-DC Converter Clocking Options
+The dc-dc converter may be clocked from its internal oscillator, or from any system clock source, selectable by the CLKSEL bit (DC0CF.0). The dc-dc converter internal oscillator frequency is approximately 2.4 MHz. For a more accurate clock source, the system clock, or a divided version of the system clock may be used as the dc-dc clock source. The dc-dc converter has a built in clock divider (configured using DC0CF[6:5]) which allows any system clock frequency over 1.6 MHz to generate a valid clock in the range of 1.6 to 3.2 MHz. 
+When the precision internal oscillator is selected as the system clock source, the OSCICL register may be used to fine tune the oscillator frequency and the dc-dc converter clock. The oscillator frequency should only be decreased since it is factory calibrated at its maximum frequency. The minimum frequency which can be reached by the oscillator after taking into account process variations is approximately 16 MHz. The system clock routed to the dc-dc converter clock divider also may be inverted by setting the CLKINV bit (DC0CF.3) to logic 1. These options can be used to minimize interference in noise sensitive applications.
+16.8.	DC-DC Converter Behavior in Sleep Mode
+When the C8051F93x-C8051F92x devices are placed in Sleep mode, the dc-dc converter is disabled, and the VDD/DC+ output is internally connected to VBAT by default. This behavior ensures that the GPIO pins are powered from a low-impedance source during sleep mode. If the GPIO pins are not used as inputs or outputs during sleep mode, then the VDD/DC+ output can be made to float during Sleep mode by setting the VDDSLP bit in the DC0CF register to 1. 
+Setting this bit can provide power savings in two ways. First, if the sleep interval is relatively short and the VDD/DC+ load current (include leakage currents) is negligible, then the capacitor on VDD/DC+ will maintain the output voltage near the programmed value, which means that the VDD/DC+ capacitor will not need to be recharged upon every wake up event. The second power advantage is that internal or external low-power circuits that require more than 1.8 V can continue to function during Sleep mode without operating the dc-dc converter, powered by the energy stored in the 1 µF output decoupling capacitor. For example, the C8051F93x-C8051F92x comparators require about 0.4 µA when operating in their lowest power mode. If the dc-dc converter output were increased to 3.3 V just before putting the device into Sleep mode, then the comparator could be powered for more than 3 seconds before the output voltage dropped to 1.8 V. In this example, the overall energy consumption would be much lower than if the dc-dc converter were kept running to power the comparator. 
+If the load current on VDD/DC+ is high enough to discharge the VDD/DC+ capacitance to a voltage lower than VBAT during the sleep interval, an internal diode will prevent VDD/DC+ from dropping more than a few hundred millivolts below VBAT. There may be some additional leakage current from VBAT to ground when the VDD/DC+ level falls below VBAT, but this leakage current should be small compared to the current from VDD/DC+.
+The amount of time that it takes for a device configured in one-cell mode to wake up from Sleep mode depends on a number of factors, including the dc-dc converter clock speed, the settings of the SWSEL and ILIMIT bits, the battery internal resistance, the load current, and the difference between the VBAT voltage level and the programmed output voltage. The wake up time can be as short as 2 µs, though it is more commonly in the range of 5 to 10 µs, and it can exceed 50 µs under extreme conditions.
+See Section “14. Power Management” on page 159 for more information about sleep mode.
+
+16.9.	DC-DC Converter Register Descriptions
+The SFRs used to configure the dc-dc converter are described in the following register descriptions. The reset values for these registers can be used as-is in most systems; therefore, no software intervention or initialization is required.
+
+SFR Definition 16.1. DC0CN: DC-DC Converter Control
+Bit	7	6	5	4	3	2	1	0
+Name	MINPW		SWSEL	Reserved	SYNC	VSEL		
+Type	R/W		R/W	R/W	R/W	R/W		
+Reset	0	0	1	0	0	0	0	1
+
+SFR Page = 0x0; SFR Address = 0x97
+Bit	Name	Function
+7:6	MINPW[1:0]	DC-DC Converter Minimum Pulse Width.
+Specifies the minimum pulse width.
+00: No minimum duty cycle.
+01: Minimum pulse width is 20 ns.
+10: Minimum pulse width is 40 ns.
+11: Minimum pulse width is 80 ns.
+5	SWSEL	DC-DC Converter Switch Select. 
+Selects one of two possible converter switch sizes to maximize efficiency.
+0: The large switches are selected (best efficiency for high output currents).
+1: The small switches are selected (best efficiency for low output currents).
+4	Reserved	Reserved. Always Write to 0.
+3	SYNC	ADC0 Synchronization Enable.
+When synchronization is enabled, the ADC0SC[4:0] bits in the ADC0CF register must be set to 00000b. Behavior as described is valid in REVC and later devices.
+0: The ADC is not synchronized to the dc-dc converter.
+1: The ADC is synchronized to the dc-dc converter. ADC0 tracking is performed during the longest quiet time of the dc-dc converter switching cycle and ADC0 SAR clock is also synchronized to the dc-dc converter switching cycle.
+2:0	VSEL[2:0]	DC-DC Converter Output Voltage Select.
+Specifies the target output voltage.
+000: Target output voltage is 1.8 V.
+001: Target output voltage is 1.9 V.
+010: Target output voltage is 2.0 V.
+011: Target output voltage is 2.1 V.
+100: Target output voltage is 2.4 V.
+101: Target output voltage is 2.7 V.
+110: Target output voltage is 3.0 V.
+111: Target output voltage is 3.3 V.
+
+
+SFR Definition 16.2. DC0CF: DC-DC Converter Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	Reserved	CLKDIV[1:0]		AD0CKINV	CLKINV	ILIMIT	VDDSLP	CLKSEL
+Type	R	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x96
+Bit	Name	Function		
+7	Reserved	Reserved. 
+Read = 0b; Must write 0b.		
+6:5	CLKDIV[1:0]	DC-DC Clock Divider.
+Divides the dc-dc converter clock when the system clock is selected as the clock source for dc-dc converter. These bits are ignored when the dc-dc converter is clocked from its local oscillator.
+00: The dc-dc converter clock is system clock divided by 1.
+01: The dc-dc converter clock is system clock divided by 2.
+10: The dc-dc converter clock is system clock divided by 4.
+11: The dc-dc converter clock is system clock divided by 8.		
+4	AD0CKINV	ADC0 Clock Inversion (Clock Invert During Sync).
+Inverts the ADC0 SAR clock derived from the dc-dc converter clock when the SYNC bit (DC0CN.3) is enabled. This bit is ignored when the SYNC bit is set to zero.
+0: ADC0 SAR clock is inverted.
+1: ADC0 SAR clock is not inverted.		
+3	CLKINV	DC-DC Converter Clock Invert.
+Inverts the system clock used as the input to the dc-dc clock divider.
+0: The dc-dc converter clock is not inverted.
+1: The dc-dc converter clock is inverted.		
+2	ILIMIT	Peak Current Limit Threshold.
+Sets the threshold for the maximum allowed peak inductor current. See Table 16.1 for peak inductor current levels.
+0: Peak inductor current is set at a lower level.
+1: Peak inductor current is set at a higher level.		
+1	VDDSLP	VDD-DC+ Sleep Mode Connection.
+Specifies the power source for VDD/DC+ in Sleep Mode when the dc-dc converter is enabled.
+0: VDD-DC+ connected to VBAT in Sleep Mode.
+1: VDD-DC+ is floating in Sleep Mode. 		
+0	CLKSEL	DC-DC Converter Clock Source Select.
+Specifies the dc-dc converter clock source.
+0: The dc-dc converter is clocked from its local oscillator.
+1: The dc-dc converter is clocked from the system clock.		
+
+
+16.10.	DC-DC Converter Specifications
+See Table 4.14 on page 66 for a detailed listing of dc-dc converter specifications.

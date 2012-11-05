@@ -1,0 +1,149 @@
+﻿7.	Comparators 
+C8051F93x-C8051F92x devices include two on-chip programmable voltage comparators: Comparator 0 (CPT0) is shown in Figure 7.1; Comparator 1 (CPT1) is shown in Figure 7.2. The two comparators operate identically, but may differ in their ability to be used as reset or wake-up sources. See the Reset Sources chapter and the Power Management chapter for details on reset sources and low power mode wake-up sources, respectively.
+The Comparator offers programmable response time and hysteresis, an analog input multiplexer, and two outputs that are optionally available at the Port pins: a synchronous “latched” output (CP0, CP1), or an asynchronous “raw” output (CP0A, CP1A). The asynchronous CP0A signal is available even when the system clock is not active. This allows the Comparator to operate and generate an output when the device is in some low power modes.
+7.1.	Comparator Inputs
+Each Comparator performs an analog comparison of the voltage levels at its positive (CP0+ or CP1+) and negative (CP0- or CP1-) input. Both comparators support multiple port pin inputs multiplexed to their positive and negative comparator inputs using analog input multiplexers. The analog input multiplexers are completely under software control and configured using SFR registers. See Section “7.6. Comparator0 and Comparator1 Analog Multiplexers” on page 100 for details on how to select and configure Comparator inputs.
+Important Note About Comparator Inputs: The Port pins selected as Comparator inputs should be configured as analog inputs and skipped by the Crossbar. See the Port I/O chapter for more details on how to configure Port I/O pins as Analog Inputs. The Comparator may also be used to compare the logic level of digital signals, however, Port I/O pins configured as digital inputs must be driven to a valid logic state (HIGH or LOW) to avoid increased power consumption.
+
+Figure 7.1. Comparator 0 Functional Block Diagram
+7.2.	Comparator Outputs
+When a comparator is enabled, its output is a logic 1 if the voltage at the positive input is higher than the voltage at the negative input. When disabled, the comparator output is a logic 0. The comparator output is synchronized with the system clock as shown in Figure 7.2. The synchronous “latched” output (CP0, CP1) can be polled in software (CPnOUT bit), used as an interrupt source, or routed to a Port pin through the Crossbar. 
+The asynchronous “raw” comparator output (CP0A, CP1A) is used by the low power mode wakeup logic and reset decision logic. See the Power Options chapter and the Reset Sources chapter for more details on how the asynchronous comparator outputs are used to make wake-up and reset decisions. The asynchronous comparator output can also be routed directly to a Port pin through the Crossbar, and is available for use outside the device even if the system clock is stopped.
+When using a Comparator as an interrupt source, Comparator interrupts can be generated on rising-edge and/or falling-edge comparator output transitions. Two independent interrupt flags (CPnRIF and CPnFIF) allow software to determine which edge caused the Comparator interrupt. The comparator rising-edge and falling-edge interrupt flags are set by hardware when a corresponding edge is detected regardless of the interrupt enable state. Once set, these bits remain set until cleared by software.
+The rising-edge and falling-edge interrupts can be individually enabled using the CPnRIE and CPnFIE interrupt enable bits in the CPTnMD register. In order for the CPnRIF and/or CPnFIF interrupt flags to generate an interrupt request to the CPU, the Comparator must be enabled as an interrupt source and global interrupts must be enabled. See the Interrupt Handler chapter for additional information.
+
+Figure 7.2. Comparator 1 Functional Block Diagram
+7.3.	Comparator Response Time 
+Comparator response time may be configured in software via the CPTnMD registers described on “CPT0MD: Comparator 0 Mode Selection” on page 97 and “CPT1MD: Comparator 1 Mode Selection” on page 99. Four response time settings are available: Mode 0 (Fastest Response Time), Mode 1, Mode 2, and Mode 3 (Lowest Power). Selecting a longer response time reduces the Comparator active supply current. The Comparators also have low power shutdown state, which is entered any time the comparator is disabled. Comparator rising edge and falling edge response times are typically not equal. See Table 4.13 on page 64 for complete comparator timing and supply current specifications. 
+7.4.	Comparator Hysterisis
+The Comparators feature software-programmable hysterisis that can be used to stabilize the comparator output while a transition is occurring on the input. Using the CPTnCN registers, the user can program both the amount of hysteresis voltage (referred to the input voltage) and the positive and negative-going symmetry of this hysteresis around the threshold voltage (i.e., the comparator negative input).
+Figure 7.3 shows that when positive hysterisis is enabled, the comparator output does not transition from logic 0 to logic 1 until the comparator positive input voltage has exceeded the threshold voltage by an amount equal to the programmed hysterisis. It also shows that when negative hysterisis is enabled, the comparator output does not transition from logic 1 to logic 0 until the comparator positive input voltage has fallen below the threshold voltage by an amount equal to the programmed hysterisis.
+The amount of positive hysterisis is determined by the settings of the CPnHYP bits in the CPTnCN register and the amount of negative hysteresis voltage is determined by the settings of the CPnHYN bits in the same register. Settings of 20 mV, 10 mV, 5 mV, or 0 mV can be programmed for both positive and negative hysterisis. See Section “Table 4.13.  Comparator Electrical Characteristics” on page 64 for complete comparator hysterisis specifications.
+
+Figure 7.3. Comparator Hysteresis Plot
+7.5.	Comparator Register Descriptions
+The SFRs used to enable and configure the comparators are described in the following register descriptions. A Comparator must be enabled by setting the CPnEN bit to logic 1 before it can be used. From an enabled state, a comparator can be disabled and placed in a low power state by clearing the CPnEN bit to logic 0.
+Important Note About Comparator Settings: False rising and falling edges can be detected by the Comparator while powering on or if changes are made to the hysteresis or response time control bits. Therefore, it is recommended that the rising-edge and falling-edge flags be explicitly cleared to logic 0 a short time after the comparator is enabled or its mode bits have been changed. The Comparator Power Up Time is specified in Section “Table 4.13.  Comparator Electrical Characteristics” on page 64.
+
+SFR Definition 7.1. CPT0CN: Comparator 0 Control
+Bit	7	6	5	4	3	2	1	0
+Name	CP0EN	CP0OUT	CP0RIF	CP0FIF	CP0HYP[1:0]		CP0HYN[1:0]	
+Type	R/W	R	R/W	R/W	R/W		R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page= 0x0; SFR Address = 0x9B 
+Bit	Name	Function		
+7	CP0EN	Comparator0 Enable Bit.
+0: Comparator0 Disabled.
+1: Comparator0 Enabled.		
+6	CP0OUT	Comparator0 Output State Flag.
+0: Voltage on CP0+ < CP0–.
+1: Voltage on CP0+ > CP0–.		
+5	CP0RIF	Comparator0 Rising-Edge Flag. Must be cleared by software.
+0: No Comparator0 Rising Edge has occurred since this flag was last cleared.
+1: Comparator0 Rising Edge has occurred.		
+4	CP0FIF	Comparator0 Falling-Edge Flag. Must be cleared by software.
+0: No Comparator0 Falling-Edge has occurred since this flag was last cleared.
+1: Comparator0 Falling-Edge has occurred.		
+3:2	CP0HYP[1:0]	Comparator0 Positive Hysteresis Control Bits.
+00: Positive Hysteresis Disabled.
+01: Positive Hysteresis = 5 mV.
+10: Positive Hysteresis = 10 mV.
+11: Positive Hysteresis = 20 mV.		
+1:0	CP0HYN[1:0]	Comparator0 Negative Hysteresis Control Bits.
+00: Negative Hysteresis Disabled.
+01: Negative Hysteresis = 5 mV.
+10: Negative Hysteresis = 10 mV.
+11: Negative Hysteresis = 20 mV.		
+
+
+SFR Definition 7.2. CPT0MD: Comparator 0 Mode Selection
+Bit	7	6	5	4	3	2	1	0
+Name			CP0RIE	CP0FIE			CP0MD[1:0]	
+Type	R/W	R	R/W	R/W	R	R	R/W	
+Reset	1	0	0	0	0	0	1	0
+
+SFR Page = All Pages; SFR Address = 0x9D
+Bit	Name	Function		
+7	Reserved	Reserved. Read = 1b, Must Write 1b.		
+6	Unused	Unused.
+Read = 0b, Write = don’t care.		
+5	CP0RIE	Comparator0 Rising-Edge Interrupt Enable.
+0: Comparator0 Rising-edge interrupt disabled.
+1: Comparator0 Rising-edge interrupt enabled.		
+4	CP0FIE	Comparator0 Falling-Edge Interrupt Enable.
+0: Comparator0 Falling-edge interrupt disabled.
+1: Comparator0 Falling-edge interrupt enabled.		
+3:2	Unused	Unused.
+Read = 00b, Write = don’t care.		
+1:0	CP0MD[1:0]	Comparator0 Mode Select
+These bits affect the response time and power consumption for Comparator0.
+00: Mode 0 (Fastest Response Time, Highest Power Consumption)
+01: Mode 1
+10: Mode 2
+11: Mode 3 (Slowest Response Time, Lowest Power Consumption)		
+
+
+
+SFR Definition 7.3. CPT1CN: Comparator 1 Control
+Bit	7	6	5	4	3	2	1	0
+Name	CP1EN	CP1OUT	CP1RIF	CP1FIF	CP1HYP[1:0]		CP1HYN[1:0]	
+Type	R/W	R	R/W	R/W	R/W		R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page= 0x0; SFR Address = 0x9A 
+Bit	Name	Function		
+7	CP1EN	Comparator1 Enable Bit.
+0: Comparator1 Disabled.
+1: Comparator1 Enabled.		
+6	CP1OUT	Comparator1 Output State Flag.
+0: Voltage on CP1+ < CP1–.
+1: Voltage on CP1+ > CP1–.		
+5	CP1RIF	Comparator1 Rising-Edge Flag. Must be cleared by software.
+0: No Comparator1 Rising Edge has occurred since this flag was last cleared.
+1: Comparator1 Rising Edge has occurred.		
+4	CP1FIF	Comparator1 Falling-Edge Flag. Must be cleared by software.
+0: No Comparator1 Falling-Edge has occurred since this flag was last cleared.
+1: Comparator1 Falling-Edge has occurred.		
+3:2	CP1HYP[1:0]	Comparator1 Positive Hysteresis Control Bits.
+00: Positive Hysteresis Disabled.
+01: Positive Hysteresis = 5 mV.
+10: Positive Hysteresis = 10 mV.
+11: Positive Hysteresis = 20 mV.		
+1:0	CP1HYN[1:0]	Comparator1 Negative Hysteresis Control Bits.
+00: Negative Hysteresis Disabled.
+01: Negative Hysteresis = 5 mV.
+10: Negative Hysteresis = 10 mV.
+11: Negative Hysteresis = 20 mV.		
+
+
+
+SFR Definition 7.4. CPT1MD: Comparator 1 Mode Selection
+Bit	7	6	5	4	3	2	1	0
+Name			CP1RIE	CP1FIE			CP1MD[1:0]	
+Type	R/W	R	R/W	R/W	R	R	R/W	
+Reset	1	0	0	0	0	0	1	0
+
+SFR Page = 0x0; SFR Address = 0x9C
+Bit	Name	Function		
+7	Reserved	Reserved. Read = 1b, Must Write 1b.		
+6	Unused	Unused.
+Read = 00b, Write = don’t care.		
+5	CP1RIE	Comparator1 Rising-Edge Interrupt Enable.
+0: Comparator1 Rising-edge interrupt disabled.
+1: Comparator1 Rising-edge interrupt enabled.		
+4	CP1FIE	Comparator1 Falling-Edge Interrupt Enable.
+0: Comparator1 Falling-edge interrupt disabled.
+1: Comparator1 Falling-edge interrupt enabled.		
+3:2	Unused	Unused.
+Read = 00b, Write = don’t care.		
+1:0	CP1MD[1:0]	Comparator1 Mode Select
+These bits affect the response time and power consumption for Comparator1.
+00: Mode 0 (Fastest Response Time, Highest Power Consumption)
+01: Mode 1
+10: Mode 2
+11: Mode 3 (Slowest Response Time, Lowest Power Consumption)		
+
+
+
+

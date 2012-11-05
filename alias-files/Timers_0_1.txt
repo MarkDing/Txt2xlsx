@@ -1,0 +1,145 @@
+﻿25.1.	Timer 0 and Timer 1
+Each timer is implemented as a 16-bit register accessed as two separate bytes: a low byte (TL0 or TL1) and a high byte (TH0 or TH1). The Counter/Timer Control register (TCON) is used to enable Timer 0 and Timer 1 as well as indicate status. Timer 0 interrupts can be enabled by setting the ET0 bit in the IE register (Section “12.5. Interrupt Register Descriptions” on page 139); Timer 1 interrupts can be enabled by setting the ET1 bit in the IE register (Section “12.5. Interrupt Register Descriptions” on page 139). Both counter/timers operate in one of four primary modes selected by setting the Mode Select bits T1M1–T0M0 in the Counter/Timer Mode register (TMOD). Each timer can be configured independently. Each operating mode is described below.
+25.1.1.	Mode 0: 13-bit Counter/Timer
+Timer 0 and Timer 1 operate as 13-bit counter/timers in Mode 0. The following describes the configuration and operation of Timer 0. However, both timers operate identically, and Timer 1 is configured in the same manner as described for Timer 0.
+The TH0 register holds the eight MSBs of the 13-bit counter/timer. TL0 holds the five LSBs in bit positions TL0.4–TL0.0. The three upper bits of TL0 (TL0.7–TL0.5) are indeterminate and should be masked out or ignored when reading. As the 13-bit timer register increments and overflows from 0x1FFF (all ones) to 0x0000, the timer overflow flag TF0 (TCON.5) is set and an interrupt will occur if Timer 0 interrupts are enabled. 
+The C/T0 bit (TMOD.2) selects the counter/timer's clock source. When C/T0 is set to logic 1, high-to-low transitions at the selected Timer 0 input pin (T0) increment the timer register (Refer to Section “21.3. Priority Crossbar Decoder” on page 221 for information on selecting and configuring external I/O pins). Clearing C/T selects the clock defined by the T0M bit (CKCON.3). When T0M is set, Timer 0 is clocked by the system clock. When T0M is cleared, Timer 0 is clocked by the source selected by the Clock Scale bits in CKCON (see SFR Definition 25.1).
+Setting the TR0 bit (TCON.4) enables the timer when either GATE0 (TMOD.3) is logic 0 or the input signal INT0 is active as defined by bit IN0PL in register IT01CF (see SFR Definition 12.7). Setting GATE0 to 1 allows the timer to be controlled by the external input signal INT0 (see Section “12.5. Interrupt Register Descriptions” on page 139), facilitating pulse width measurements
+
+Table 25.1. Timer 0 Running Modes
+TR0	GATE0	INT0	Counter/Timer
+0	X	X	Disabled
+1	0	X	Enabled
+1	1	0	Disabled
+1	1	1	Enabled
+Note:	X = Don't Care			
+
+Setting TR0 does not force the timer to reset. The timer registers should be loaded with the desired initial value before the timer is enabled.
+TL1 and TH1 form the 13-bit register for Timer 1 in the same manner as described above for TL0 and TH0. Timer 1 is configured and controlled using the relevant TCON and TMOD bits just as with Timer 0. The input signal INT1 is used with Timer 1; the INT1 polarity is defined by bit IN1PL in register IT01CF (see SFR Definition 12.7).
+
+Figure 25.1. T0 Mode 0 Block Diagram
+25.1.2.	Mode 1: 16-bit Counter/Timer
+Mode 1 operation is the same as Mode 0, except that the counter/timer registers use all 16 bits. The counter/timers are enabled and configured in Mode 1 in the same manner as for Mode 0. 
+25.1.3.	Mode 2: 8-bit Counter/Timer with Auto-Reload
+Mode 2 configures Timer 0 and Timer 1 to operate as 8-bit counter/timers with automatic reload of the start value. TL0 holds the count and TH0 holds the reload value. When the counter in TL0 overflows from all ones to 0x00, the timer overflow flag TF0 (TCON.5) is set and the counter in TL0 is reloaded from TH0. If Timer 0 interrupts are enabled, an interrupt will occur when the TF0 flag is set. The reload value in TH0 is not changed. TL0 must be initialized to the desired value before enabling the timer for the first count to be correct. When in Mode 2, Timer 1 operates identically to Timer 0. 
+Both counter/timers are enabled and configured in Mode 2 in the same manner as Mode 0. Setting the TR0 bit (TCON.4) enables the timer when either GATE0 (TMOD.3) is logic 0 or when the input signal INT0 is active as defined by bit IN0PL in register IT01CF (see Section “12.6. External Interrupts INT0 and INT1” on page 146 for details on the external input signals INT0 and INT1).
+
+Figure 25.2. T0 Mode 2 Block Diagram
+25.1.4.	Mode 3: Two 8-bit Counter/Timers (Timer 0 Only)
+In Mode 3, Timer 0 is configured as two separate 8-bit counter/timers held in TL0 and TH0. The counter/timer in TL0 is controlled using the Timer 0 control/status bits in TCON and TMOD: TR0, C/T0, GATE0 and TF0. TL0 can use either the system clock or an external input signal as its timebase. The TH0 register is restricted to a timer function sourced by the system clock or prescaled clock. TH0 is enabled using the Timer 1 run control bit TR1. TH0 sets the Timer 1 overflow flag TF1 on overflow and thus controls the Timer 1 interrupt.
+Timer 1 is inactive in Mode 3. When Timer 0 is operating in Mode 3, Timer 1 can be operated in Modes 0, 1 or 2, but cannot be clocked by external signals nor set the TF1 flag and generate an interrupt. However, the Timer 1 overflow can be used to generate baud rates for the SMBus and/or UART, and/or initiate ADC conversions. While Timer 0 is operating in Mode 3, Timer 1 run control is handled through its mode settings. To run Timer 1 while Timer 0 is in Mode 3, set the Timer 1 Mode as 0, 1, or 2. To disable Timer 1, configure it for Mode 3.
+
+Figure 25.3. T0 Mode 3 Block Diagram
+
+SFR Definition 25.2. TCON: Timer Control
+Bit	7	6	5	4	3	2	1	0
+Name	TF1	TR1	TF0	TR0	IE1	IT1	IE0	IT0
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x88; Bit-Addressable
+Bit	Name	Function		
+7	TF1	Timer 1 Overflow Flag.
+Set to 1 by hardware when Timer 1 overflows. This flag can be cleared by software but is automatically cleared when the CPU vectors to the Timer 1 interrupt service routine.		
+6	TR1	Timer 1 Run Control.
+Timer 1 is enabled by setting this bit to 1.		
+5	TF0	Timer 0 Overflow Flag.
+Set to 1 by hardware when Timer 0 overflows. This flag can be cleared by software but is automatically cleared when the CPU vectors to the Timer 0 interrupt service routine.		
+4	TR0	Timer 0 Run Control.
+Timer 0 is enabled by setting this bit to 1.		
+3	IE1	External Interrupt 1. 
+This flag is set by hardware when an edge/level of type defined by IT1 is detected. It can be cleared by software but is automatically cleared when the CPU vectors to the External Interrupt 1 service routine in edge-triggered mode.		
+2	IT1	Interrupt 1 Type Select. 
+This bit selects whether the configured INT1 interrupt will be edge or level sensitive. INT1 is configured active low or high by the IN1PL bit in the IT01CF register (see SFR Definition 12.7).
+0: INT1 is level triggered.
+1: INT1 is edge triggered.		
+1	IE0	External Interrupt 0. 
+This flag is set by hardware when an edge/level of type defined by IT1 is detected. It can be cleared by software but is automatically cleared when the CPU vectors to the External Interrupt 0 service routine in edge-triggered mode.		
+0	IT0	Interrupt 0 Type Select. 
+This bit selects whether the configured INT0 interrupt will be edge or level sensitive. INT0 is configured active low or high by the IN0PL bit in register IT01CF (see SFR Definition 12.7).
+0: INT0 is level triggered.
+1: INT0 is edge triggered.		
+
+
+SFR Definition 25.3. TMOD: Timer Mode
+Bit	7	6	5	4	3	2	1	0
+Name	GATE1	C/T1	T1M[1:0]		GATE0	C/T0	T0M[1:0]	
+Type	R/W	R/W	R/W		R/W	R/W	R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x89
+Bit	Name	Function		
+7	GATE1	Timer 1 Gate Control.
+0: Timer 1 enabled when TR1 = 1 irrespective of INT1 logic level.
+1: Timer 1 enabled only when TR1 = 1 AND INT1 is active as defined by bit IN1PL in register IT01CF (see SFR Definition 12.7).		
+6	C/T1	Counter/Timer 1 Select. 
+0: Timer: Timer 1 incremented by clock defined by T1M bit in register CKCON.
+1: Counter: Timer 1 incremented by high-to-low transitions on external pin (T1).		
+5:4	T1M[1:0]	Timer 1 Mode Select. 
+These bits select the Timer 1 operation mode.
+00: Mode 0, 13-bit Counter/Timer
+01: Mode 1, 16-bit Counter/Timer
+10: Mode 2, 8-bit Counter/Timer with Auto-Reload
+11: Mode 3, Timer 1 Inactive		
+3	GATE0	Timer 0 Gate Control.
+0: Timer 0 enabled when TR0 = 1 irrespective of INT0 logic level.
+1: Timer 0 enabled only when TR0 = 1 AND INT0 is active as defined by bit IN0PL in register IT01CF (see SFR Definition 12.7).		
+2	C/T0	Counter/Timer 0 Select. 
+0: Timer: Timer 0 incremented by clock defined by T0M bit in register CKCON.
+1: Counter: Timer 0 incremented by high-to-low transitions on external pin (T0).		
+1:0	T0M[1:0]	Timer 0 Mode Select. 
+These bits select the Timer 0 operation mode.
+00: Mode 0, 13-bit Counter/Timer
+01: Mode 1, 16-bit Counter/Timer
+10: Mode 2, 8-bit Counter/Timer with Auto-Reload
+11: Mode 3, Two 8-bit Counter/Timers		
+
+
+SFR Definition 25.4. TL0: Timer 0 Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TL0[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x8A
+Bit	Name	Function		
+7:0	TL0[7:0]	Timer 0 Low Byte. 
+The TL0 register is the low byte of the 16-bit Timer 0.		
+
+
+SFR Definition 25.5. TL1: Timer 1 Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TL1[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x8B
+Bit	Name	Function		
+7:0	TL1[7:0]	Timer 1 Low Byte. 
+The TL1 register is the low byte of the 16-bit Timer 1.		
+
+
+SFR Definition 25.6. TH0: Timer 0 High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TH0[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x8C
+Bit	Name	Function		
+7:0	TH0[7:0]	Timer 0 High Byte. 
+The TH0 register is the high byte of the 16-bit Timer 0.		
+
+
+SFR Definition 25.7. TH1: Timer 1 High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	TH1[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0x8D
+Bit	Name	Function		
+7:0	TH1[7:0]	Timer 1 High Byte. 
+The TH1 register is the high byte of the 16-bit Timer 1.		
+
+

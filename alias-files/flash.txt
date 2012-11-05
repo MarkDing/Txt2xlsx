@@ -1,0 +1,204 @@
+﻿13.	Flash Memory
+On-chip, re-programmable Flash memory is included for program code and non-volatile data storage. The Flash memory can be programmed in-system through the C2 interface or by software using the MOVX write instruction. Once cleared to logic 0, a Flash bit must be erased to set it back to logic 1. Flash bytes would typically be erased (set to 0xFF) before being reprogrammed. The write and erase operations are automatically timed by hardware for proper execution; data polling to determine the end of the write/erase operations is not required. Code execution is stalled during Flash write/erase operations. Refer to Table 4.6 for complete Flash memory electrical characteristics.
+13.1.	Programming The Flash Memory
+The simplest means of programming the Flash memory is through the C2 interface using programming tools provided by Silicon Laboratories or a third party vendor. This is the only means for programming a non-initialized device. For details on the C2 commands to program Flash memory, see Section “27. C2 Interface” on page 324. 
+The Flash memory can be programmed by software using the MOVX write instruction with the address and data byte to be programmed provided as normal operands. Before programming Flash memory using MOVX, Flash programming operations must be enabled by: (1) setting the PSWE Program Store Write Enable bit (PSCTL.0) to logic 1 (this directs the MOVX writes to target Flash memory); and (2) Writing the Flash key codes in sequence to the Flash Lock register (FLKEY). The PSWE bit remains set until cleared by software. For detailed guidelines on programming Flash from firmware, please see Section “13.5. Flash Write and Erase Guidelines” on page 153.
+To ensure the integrity of the Flash contents, the on-chip VDD Monitor must be enabled and enabled as a reset source in any system that includes code that writes and/or erases Flash memory from software. Furthermore, there should be no delay between enabling the VDD Monitor and enabling the VDD Monitor as a reset source. Any attempt to write or erase Flash memory while the VDD Monitor is disabled, or not enabled as a reset source, will cause a Flash Error device reset.
+13.1.1.	Flash Lock and Key Functions
+Flash writes and erases by user software are protected with a lock and key function. The Flash Lock and Key Register (FLKEY) must be written with the correct key codes, in sequence, before Flash operations may be performed. The key codes are: 0xA5, 0xF1. The timing does not matter, but the codes must be written in order. If the key codes are written out of order, or the wrong codes are written, Flash writes and erases will be disabled until the next system reset. Flash writes and erases will also be disabled if a Flash write or erase is attempted before the key codes have been written properly. The Flash lock resets after each write or erase; the key codes must be written again before a following Flash operation can be performed. The FLKEY register is detailed in SFR Definition 13.2.
+13.1.2.	Flash Erase Procedure
+The Flash memory is organized in 1024-byte pages. The erase operation applies to an entire page (setting all bytes in the page to 0xFF). To erase an entire 1024-byte page, perform the following steps:
+	1.	Save current interrupt state and disable interrupts.
+	2.	Set the PSEE bit (register PSCTL).
+	3.	Set the PSWE bit (register PSCTL).
+	4.	Write the first key code to FLKEY: 0xA5.
+	5.	Write the second key code to FLKEY: 0xF1.
+	6.	Using the MOVX instruction, write a data byte to any location within the 1024-byte page to be erased.
+	7.	Clear the PSWE and PSEE bits.
+	8.	Restore previous interrupt state.
+
+Steps 4–6 must be repeated for each 1024-byte page to be erased. 
+Notes:
+1.	Future 16 and 8 kB derivatives in this product family will use a 512-byte page size. To maintain code compatibility across the entire family, the erase procedure should be performed on each 512-byte section of memory.
+2. 	Flash security settings may prevent erasure of some Flash pages, such as the reserved area and the page containing the lock bytes. For a summary of Flash security settings and restrictions affecting Flash erase operations, please see Section “13.3. Security Options” on page 150.
+3. 	8-bit MOVX instructions cannot be used to erase or write to Flash memory at addresses higher than 0x00FF.
+13.1.3.	Flash Write Procedure
+A write to Flash memory can clear bits to logic 0 but cannot set them; only an erase operation can set bits to logic 1 in Flash. A byte location to be programmed should be erased before a new value is written.
+The recommended procedure for writing a single byte in Flash is as follows:
+	1.	Save current interrupt state and disable interrupts.
+	2.	Ensure that the Flash byte has been erased (has a value of 0xFF).
+	3.	Set the PSWE bit (register PSCTL).
+	4.	Clear the PSEE bit (register PSCTL).
+	5.	Write the first key code to FLKEY: 0xA5.
+	6.	Write the second key code to FLKEY: 0xF1.
+	7.	Using the MOVX instruction, write a single data byte to the desired location within the 1024-byte sector.
+	8.	Clear the PSWE bit.
+	9.	Restore previous interrupt state.
+
+Steps 5–7 must be repeated for each byte to be written. 
+Notes:
+1.	Future 16 and 8 kB derivatives in this product family will use a 512-byte page size. To maintain code compatibility across the entire family, the erase procedure should be performed on each 512-byte section of memory.
+2. 	Flash security settings may prevent writes to some areas of Flash, such as the reserved area. For a summary of Flash security settings and restrictions affecting Flash write operations, please see Section “13.3. Security Options” on page 150.
+13.2.	Non-volatile Data Storage
+The Flash memory can be used for non-volatile data storage as well as program code. This allows data such as calibration coefficients to be calculated and stored at run time. Data is written using the MOVX write instruction and read using the MOVC instruction. Note: MOVX read instructions always target XRAM.
+An additional 1024-byte scratchpad is available for non-volatile data storage. It is accessible at addresses 0x0000 to 0x03FF when SFLE is set to 1. The scratchpad area cannot be used for code execution.
+13.3.	Security Options
+The CIP-51 provides security options to protect the Flash memory from inadvertent modification by software as well as to prevent the viewing of proprietary program code and constants. The Program Store Write Enable (bit PSWE in register PSCTL) and the Program Store Erase Enable (bit PSEE in register PSCTL) bits protect the Flash memory from accidental modification by software. PSWE must be explicitly set to 1 before software can modify the Flash memory; both PSWE and PSEE must be set to 1 before software can erase Flash memory. Additional security features prevent proprietary program code and data constants from being read or altered across the C2 interface.
+A Security Lock Byte located at the last byte of Flash user space offers protection of the Flash program memory from access (reads, writes, or erases) by unprotected code or the C2 interface. The Flash security mechanism allows the user to lock n 1024-byte Flash pages, starting at page 0 (addresses 0x0000 to 0x03FF), where n is the 1s complement number represented by the Security Lock Byte. The page containing the Flash Security Lock Byte is unlocked when no other Flash pages are locked (all bits of the Lock Byte are 1) and locked when any other Flash pages are locked (any bit of the Lock Byte is 0). See the C8051F930 example below.
+
+Security Lock Byte:	  11111101b
+ones Complement:	00000010b
+Flash pages locked:	3 (First two Flash pages + Lock Byte Page)
+	
+Addresses locked:	0x0000 to 0x07FF (first two Flash pages) and 
+0xF800 to 0xFBFF (Lock Byte Page)
+
+
+Figure 13.1. Flash Program Memory Map
+The level of Flash security depends on the Flash access method. The three Flash access methods that can be restricted are reads, writes, and erases from the C2 debug interface, user firmware executing on unlocked pages, and user firmware executing on locked pages. Table 13.1 summarizes the Flash security features of the C8051F93x-C8051F92x devices.
+
+Table 13.1. Flash Security Summary
+Action	C2 Debug Interface	User Firmware executing from: 	
+		an unlocked page	a locked page
+Read, Write or Erase unlocked pages                      (except page with Lock Byte)	Permitted	Permitted	Permitted
+Read, Write or Erase locked pages                        (except page with Lock Byte)	Not Permitted	FEDR	Permitted
+Read or Write page containing Lock Byte                      (if no pages are locked)	Permitted	Permitted	Permitted
+Read or Write page containing Lock Byte                        (if any page is locked)	Not Permitted	FEDR	Permitted
+Read contents of Lock Byte
+(if no pages are locked)	Permitted	Permitted	Permitted
+Read contents of Lock Byte
+(if any page is locked)	Not Permitted	FEDR	Permitted
+Erase page containing Lock Byte                                      (if no pages are locked)	Permitted	FEDR	FEDR
+Erase page containing Lock Byte - Unlock all pages       (if any page is locked)	Only by C2DE	FEDR	FEDR
+Lock additional pages                                               (change 1s to 0s in the Lock Byte)	Not Permitted	FEDR	FEDR
+Unlock individual pages
+(change 0s to 1s in the Lock Byte)	Not Permitted	FEDR	FEDR
+Read, Write or Erase Reserved Area	Not Permitted	FEDR	FEDR
+
+C2DE—C2 Device Erase (Erases all Flash pages including the page containing the Lock Byte)
+FEDR—Not permitted; Causes Flash Error Device Reset (FERROR bit in RSTSRC is '1' after reset)
+
+- All prohibited operations that are performed via the C2 interface are ignored (do not cause device reset).
+- Locking any Flash page also locks the page containing the Lock Byte.
+- Once written to, the Lock Byte cannot be modified except by performing a C2 Device Erase. 
+- If user code writes to the Lock Byte, the Lock does not take effect until the next device reset.
+- The scratchpad is locked when all other Flash pages are locked.
+- The scratchpad is erased when a Flash Device Erase command is performed.			
+
+13.4.	Determining the Device Part Number at Run Time
+In many applications, user software may need to determine the MCU part number at run time in order to determine the hardware capabilities. The part number can be determined by reading the value of the Flash byte at address 0xFFFE.
+
+The value of the Flash byte at address 0xFFFE can be decoded as follows:
+
+0x56—C8051F930
+0x5E—C8051F931
+0xB1—C8051F920
+0xB3—C8051F921
+13.5.	Flash Write and Erase Guidelines
+Any system which contains routines which write or erase Flash memory from software involves some risk that the write or erase routines will execute unintentionally if the CPU is operating outside its specified operating range of VDD, system clock frequency, or temperature. This accidental execution of Flash modifying code can result in alteration of Flash memory contents causing a system failure that is only recoverable by re-Flashing the code in the device.
+To help prevent the accidental modification of Flash by firmware, the VDD Monitor must be enabled and enabled as a reset source on C8051F92x-C8051F93x devices for the Flash to be successfully modified. If either the VDD Monitor or the VDD Monitor reset source is not enabled, a Flash Error Device Reset will be generated when the firmware attempts to modify the Flash. 
+The following guidelines are recommended for any system that contains routines which write or erase Flash from code.
+13.5.1.	VDD Maintenance and the VDD Monitor
+	1.	If the system power supply is subject to voltage or current "spikes," add sufficient transient protection devices to the power supply to ensure that the supply voltages listed in the Absolute Maximum Ratings table are not exceeded.
+	2.	Make certain that the maximum VBAT ramp time specification of 3 ms is met. This specification is outlined in Table 4.4 on page 59. On silicon revision F and later revisions, if the system cannot meet this rise time specification, then add an external VDD brownout circuit to the RST pin of the device that holds the device in reset until VDD reaches the minimum device operating voltage and re-asserts RST if VDD drops below the minimum device operating voltage.
+	3.	Keep the on-chip VDD Monitor enabled and enable the VDD Monitor as a reset source as early in code as possible. This should be the first set of instructions executed after the Reset Vector. For C-based systems, this will involve modifying the startup code added by the 'C' compiler. See your compiler documentation for more details. Make certain that there are no delays in software between enabling the VDD Monitor and enabling the VDD Monitor as a reset source. Code examples showing this can be found in “AN201: Writing to Flash from Firmware," available from the Silicon Laboratories web site.
+
+Notes: 
+On C8051F93x-C8051F92x devices, both the VDD Monitor and the VDD Monitor reset source must be enabled to write or erase Flash without generating a Flash Error Device Reset.
+On C8051F93x-C8051F92x devices, both the VDD Monitor and the VDD Monitor reset source are enabled by hardware after a power-on reset.
+	4.	As an added precaution, explicitly enable the VDD Monitor and enable the VDD Monitor as a reset source inside the functions that write and erase Flash memory. The VDD Monitor enable instructions should be placed just after the instruction to set PSWE to a '1', but before the Flash write or erase operation instruction.
+	5.	Make certain that all writes to the RSTSRC (Reset Sources) register use direct assignment operators and explicitly DO NOT use the bit-wise operators (such as AND or OR). For example, "RSTSRC = 0x02" is correct, but "RSTSRC |= 0x02" is incorrect.
+	6.	Make certain that all writes to the RSTSRC register explicitly set the PORSF bit to a '1'. Areas to check are initialization code which enables other reset sources, such as the Missing Clock Detector or Comparator, for example, and instructions which force a Software Reset. A global search on "RSTSRC" can quickly verify this.
+13.5.2.	PSWE Maintenance
+	7.	Reduce the number of places in code where the PSWE bit (b0 in PSCTL) is set to a 1. There should be exactly one routine in code that sets PSWE to a 1 to write Flash bytes and one routine in code that sets both PSWE and PSEE both to a 1 to erase Flash pages.
+	8.	Minimize the number of variable accesses while PSWE is set to a 1. Handle pointer address updates and loop maintenance outside the "PSWE = 1;... PSWE = 0;" area. Code examples showing this can be found in “AN201: Writing to Flash from Firmware," available from the Silicon Laboratories web site.
+	9.	Disable interrupts prior to setting PSWE to a 1 and leave them disabled until after PSWE has been reset to 0. Any interrupts posted during the Flash write or erase operation will be serviced in priority order after the Flash operation has been completed and interrupts have been re-enabled by software.
+	10.	Make certain that the Flash write and erase pointer variables are not located in XRAM. See your compiler documentation for instructions regarding how to explicitly locate variables in different memory areas.
+	11.	Add address bounds checking to the routines that write or erase Flash memory to ensure that a routine called with an illegal address does not result in modification of the Flash.
+13.5.3.	System Clock
+	12.	If operating from an external crystal, be advised that crystal performance is susceptible to electrical interference and is sensitive to layout and to changes in temperature. If the system is operating in an electrically noisy environment, use the internal oscillator or use an external CMOS clock.
+	13.	If operating from the external oscillator, switch to the internal oscillator during Flash write or erase operations. The external oscillator can continue to run, and the CPU can switch back to the external oscillator after the Flash operation has completed.
+
+Additional Flash recommendations and example code can be found in “AN201: Writing to Flash from Firmware," available from the Silicon Laboratories website.
+13.6.	Minimizing Flash Read Current 
+The Flash memory in the C8051F93x-C8051F92x devices is responsible for a substantial portion of the total digital supply current when the device is executing code. Below are suggestions to minimize Flash read current.
+	1.	Use idle, suspend, or sleep modes while waiting for an interrupt, rather than polling the interrupt flag. Idle mode is particularly well-suited for use in implementing short pauses, since the wake-up time is no more than three system clock cycles. See the Power Management chapter for details on the various low-power operating modes.
+	2.	C8051F93x-C8051F92x devices have a one-shot timer that saves power when operating at system clock frequencies of 10 MHz or less. The one-shot timer generates a minimum-duration enable signal for the Flash sense amps on each clock cycle in which the Flash memory is accessed. This allows the Flash to remain in a low power state for the remainder of the long clock cycle.
+At clock frequencies above 10 MHz, the system clock cycle becomes short enough that the one-shot timer no longer provides a power benefit. Disabling the one-shot timer at higher frequencies reduces power consumption. The one-shot is enabled by default, and it can be disabled (bypassed) by setting the BYPASS bit (FLSCL.6) to logic 1. To re-enable the one-shot, clear the BYPASS bit to logic 0. See the note in SFR Definition 13.3. FLSCL: Flash Scale for more information on how to properly clear the BYPASS bit.
+	3.	Flash read current depends on the number of address lines that toggle between sequential Flash read operations. In most cases, the difference in power is relatively small (on the order of 5%). 
+The Flash memory is organized in rows. Each row in the C8051F9xx Flash contains 128 bytes. A substantial current increase can be detected when the read address jumps from one row in the Flash memory to another. Consider a 3-cycle loop (e.g., SJMP $, or while(1);) which straddles a 128-byte Flash row boundary. The Flash address jumps from one row to another on two of every three clock cycles. This can result in a current increase of up 30% when compared to the same 3-cycle loop contained entirely within a single row. 
+To minimize the power consumption of small loops, it is best to locate them within a single row, if possible. To check if a loop is contained within a Flash row, divide the starting address of the first instruction in the loop by 128. If the remainder (result of modulo operation) plus the length of the loop is less than 127, then the loop fits inside a single Flash row. Otherwise, the loop will be straddling two adjacent Flash rows. If a loop executes in 20 or more clock cycles, then the transitions from one row to another will occur on relatively few clock cycles, and any resulting increase in operating current will be negligible. 
+Note:	Future 16 and 8 kB derivatives in this product family will use a Flash memory that is organized in rows of 64 bytes each. To maintain code compatibility across the entire family, it is best to locate small loops within a single 64-byte segment. 
+
+SFR Definition 13.1. PSCTL: Program Store R/W Control
+Bit	7	6	5	4	3	2	1	0
+Name						SFLE	PSEE	PSWE
+Type	R	R	R	R	R	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page =0x0; SFR Address = 0x8F
+Bit	Name	Function		
+7:3	Unused	Unused.
+Read = 00000b, Write = don’t care.		
+2	SFLE	Scratchpad Flash Memory Access Enable.
+When this bit is set, Flash MOVC reads and MOVX writes from user software are directed to the Scratchpad Flash sector. Flash accesses outside the address range 0x0000-0x03FF should not be attempted and may yield undefined results when SFLE is set to 1.
+0: Flash access from user software directed to the Program/Data Flash sector.
+1: Flash access from user software directed to the Scratchpad Sector.		
+1	PSEE	Program Store Erase Enable.
+Setting this bit (in combination with PSWE) allows an entire page of Flash program memory to be erased. If this bit is logic 1 and Flash writes are enabled (PSWE is logic 1), a write to Flash memory using the MOVX instruction will erase the entire page that contains the location addressed by the MOVX instruction. The value of the data byte written does not matter.
+0: Flash program memory erasure disabled.
+1: Flash program memory erasure enabled.		
+0	PSWE	Program Store Write Enable.
+Setting this bit allows writing a byte of data to the Flash program memory using the MOVX write instruction. The Flash location should be erased before writing data. 
+0: Writes to Flash program memory disabled.
+1: Writes to Flash program memory enabled; the MOVX write instruction targets Flash memory.		
+
+
+SFR Definition 13.2. FLKEY: Flash Lock and Key
+Bit	7	6	5	4	3	2	1	0
+Name	FLKEY[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xB6
+Bit	Name	Function		
+7:0	FLKEY[7:0]	Flash Lock and Key Register.
+Write:
+This register provides a lock and key function for Flash erasures and writes. Flash writes and erases are enabled by writing 0xA5 followed by 0xF1 to the FLKEY register. Flash writes and erases are automatically disabled after the next write or erase is complete. If any writes to FLKEY are performed incorrectly, or if a Flash write or erase operation is attempted while these operations are disabled, the Flash will be permanently
+locked from writes or erasures until the next device reset. If an application never writes to Flash, it can intentionally lock the Flash by writing a non-0xA5 value to FLKEY from software.
+Read:
+When read, bits 1–0 indicate the current Flash lock state.
+00: Flash is write/erase locked.
+01: The first key code has been written (0xA5).
+10: Flash is unlocked (writes/erases allowed).
+11: Flash writes/erases disabled until the next reset.		
+
+
+SFR Definition 13.3. FLSCL: Flash Scale
+Bit	7	6	5	4	3	2	1	0
+Name		BYPASS						
+Type	R	R/W	R	R	R	R	R	R
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xB6
+Bit	Name	Function		
+7	Reserved	Reserved. Always Write to 0.		
+6	BYPASS	Flash Read Timing One-Shot Bypass.
+0: The one-shot determines the Flash read time. This setting should be used for operating frequencies less than 10 MHz.
+1: The system clock determines the Flash read time. This setting should be used for frequencies greater than 10 MHz.		
+5:0	Reserved	Reserved. Always Write to 000000.		
+Note:	When changing the BYPASS bit from 1 to 0, the third opcode byte fetched from program memory is indeterminate. Therefore, the operation which clears the BYPASS bit should be immediately followed by a benign 3-byte instruction whose third byte is a don’t care. An example of such an instruction is a 3-byte MOV that targets the FLWR register. When programming in ‘C’, the dummy value written to FLWR should be a non-zero value to prevent the compiler from generating a 2-byte MOV instruction.				
+
+
+SFR Definition 13.4. FLWR: Flash Write Only
+Bit	7	6	5	4	3	2	1	0
+Name	FLWR[7:0]							
+Type	W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xE5
+Bit	Name	Function		
+7:0	FLWR[7:0]	Flash Write Only.
+All writes to this register have no effect on system operation.		
+
+

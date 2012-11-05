@@ -1,0 +1,235 @@
+﻿15.	Cyclic Redundancy Check Unit (CRC0)
+C8051F93x-C8051F92x devices include a cyclic redundancy check unit (CRC0) that can perform a CRC using a 16-bit or 32-bit polynomial. CRC0 accepts a stream of 8-bit data written to the CRC0IN register. CRC0 posts the 16-bit or 32-bit result to an internal register. The internal result register may be accessed indirectly using the CRC0PNT bits and CRC0DAT register, as shown in Figure 15.1. CRC0 also has a bit reverse register for quick data manipulation.
+
+Figure 15.1. CRC0 Block Diagram
+15.1.	16-bit CRC Algorithm
+The C8051F93x-C8051F92x CRC unit calculates the 16-bit CRC MSB-first, using a poly of 0x1021. The following describes the 16-bit CRC algorithm performed by the hardware:
+	1.	XOR the input with the most-significant bits of the current CRC result. If this is the first iteration of the CRC unit, the current CRC result will be the set initial value 
+(0x0000 or 0xFFFF).
+	2a.	If the MSB of the CRC result is set, left-shift the CRC result and XOR the result with the selected polynomial (0x1021).
+	2b.	If the MSB of the CRC result is not set, left-shift the CRC result.
+
+Repeat steps 2a/2b for the number of input bits (8). The algorithm is also described in the following example.
+
+The 16-bit C8051F93x-C8051F92x CRC algorithm can be described by the following code:
+unsigned short UpdateCRC (unsigned short CRC_acc, unsigned char CRC_input)
+{
+   unsigned char i;                    // loop counter
+
+   #define POLY 0x1021
+
+   // Create the CRC "dividend" for polynomial arithmetic (binary arithmetic
+   // with no carries)
+   CRC_acc = CRC_acc ^ (CRC_input << 8);
+
+   // "Divide" the poly into the dividend using CRC XOR subtraction
+   // CRC_acc holds the "remainder" of each divide
+   //
+   // Only complete this division for 8 bits since input is 1 byte
+   for (i = 0; i < 8; i++) 
+   {
+      // Check if the MSB is set (if MSB is 1, then the POLY can "divide"
+      // into the "dividend")
+      if ((CRC_acc & 0x8000) == 0x8000) 
+      {
+         // if so, shift the CRC value, and XOR "subtract" the poly
+         CRC_acc = CRC_acc << 1;
+         CRC_acc ^= POLY;
+      } 
+      else 
+      {
+         // if not, just shift the CRC value
+         CRC_acc = CRC_acc << 1;
+      }
+   }
+
+   // Return the final remainder (CRC value)
+   return CRC_acc;
+}
+
+The following table lists several input values and the associated outputs using the 16-bit C8051F93x-C8051F92x CRC algorithm:
+
+Table 15.1. Example 16-bit CRC Outputs
+Input	Output
+0x63	0xBD35
+0x8C	0xB1F4
+0x7D	0x4ECA
+0xAA, 0xBB, 0xCC	0x6CF6
+0x00, 0x00, 0xAA, 0xBB, 0xCC	0xB166
+
+15.2.	32-bit CRC Algorithm
+The C8051F93x-C8051F92x CRC unit calculates the 32-bit CRC using a poly of 0x04C11DB7. The CRC-32 algorithm is "reflected", meaning that all of the input bytes and the final 32-bit output are bit-reversed in the processing engine. The following is a description of a simplified CRC algorithm that produces results identical to the hardware:
+Step 1.  	XOR the least-significant byte of the current CRC result with the input byte. If this is the first iteration of the CRC unit, the current CRC result will be the set initial value (0x00000000 or 0xFFFFFFFF).
+Step 2.  	Right-shift the CRC result.
+Step 3.  	If the LSB of the CRC result is set, XOR the CRC result with the reflected polynomial (0xEDB88320).
+Step 4.  	Repeat at Step 2 for the number of input bits (8).
+
+For example, the 32-bit 'F93x/92x CRC algorithm can be described by the following code: 
+unsigned long UpdateCRC (unsigned long CRC_acc, unsigned char CRC_input)
+{
+   unsigned char i; // loop counter
+   #define POLY 0xEDB88320 // bit-reversed version of the poly 0x04C11DB7
+   // Create the CRC "dividend" for polynomial arithmetic (binary arithmetic
+   // with no carries)
+
+   CRC_acc = CRC_acc ^ CRC_input;
+
+   // "Divide" the poly into the dividend using CRC XOR subtraction
+   // CRC_acc holds the "remainder" of each divide
+   //
+   // Only complete this division for 8 bits since input is 1 byte
+   for (i = 0; i < 8; i++)
+   {
+      // Check if the MSB is set (if MSB is 1, then the POLY can "divide"
+      // into the "dividend")
+      if ((CRC_acc & 0x00000001) == 0x00000001)
+      {
+         // if so, shift the CRC value, and XOR "subtract" the poly
+         CRC_acc = CRC_acc >> 1;
+         CRC_acc ^= POLY;
+      }
+      else
+      {
+         // if not, just shift the CRC value
+         CRC_acc = CRC_acc >> 1;
+      }
+   }
+   // Return the final remainder (CRC value)
+   return CRC_acc;
+}
+
+The following table lists several input values and the associated outputs using the 32-bit 'F93x/92x CRC algorithm (an initial value of 0xFFFFFFFF is used):
+
+Table 15.2. Example 32-bit CRC Outputs
+Input	Output
+0x63	0xF9462090
+0xAA, 0xBB, 0xCC	0x41B207B3
+0x00, 0x00, 0xAA, 0xBB, 0xCC	0x78D129BC
+
+15.3.	Preparing for a CRC Calculation
+To prepare CRC0 for a CRC calculation, software should select the desired polynomial and set the initial value of the result. Two polynomials are available: 0x1021 (16-bit) and 0x04C11DB7 (32-bit). The CRC0 result may be initialized to one of two values: 0x00000000 or 0xFFFFFFFF. The following steps can be used to initialize CRC0.
+	1.	Select a polynomial (Set CRC0SEL to 0 for 32-bit or 1 for 16-bit).
+	2.	Select the initial result value (Set CRC0VAL to 0 for 0x00000000 or 1 for 0xFFFFFFFF).
+	3.	Set the result to its initial value (Write 1 to CRC0INIT).
+15.4.	Performing a CRC Calculation
+Once CRC0 is initialized, the input data stream is sequentially written to CRC0IN, one byte at a time. The CRC0 result is automatically updated after each byte is written. The CRC engine may also be configured to automatically perform a CRC on one or more Flash sectors. The following steps can be used to automatically perform a CRC on Flash memory.
+	1.	Prepare CRC0 for a CRC calculation as shown above.
+	2.	Write the index of the starting page to CRC0AUTO.
+	3.	Set the AUTOEN bit in CRC0AUTO.
+	4.	Write the number of Flash sectors to perform in the CRC calculation to CRC0CNT. 
+Note: Each Flash sector is 1024 bytes.
+	5.	Write any value to CRC0CN (or OR its contents with 0x00) to initiate the CRC calculation. The CPU will not execute code any additional code until the CRC operation completes.
+See the note in SFR Definition 15.1. CRC0CN: CRC0 Control for more information on how to properly initiate a CRC calculation.
+	6.	Clear the AUTOEN bit in CRC0AUTO.
+	7.	Read the CRC result using the procedure below.
+15.5.	Accessing the CRC0 Result 
+The internal CRC0 result is 32-bits (CRC0SEL = 0b) or 16-bits (CRC0SEL = 1b). The CRC0PNT bits select the byte that is targeted by read and write operations on CRC0DAT and increment after each read or write. The calculation result will remain in the internal CR0 result register until it is set, overwritten, or additional data is written to CRC0IN.
+
+SFR Definition 15.1. CRC0CN: CRC0 Control
+Bit	7	6	5	4	3	2	1	0
+Name				CRC0SEL	CRC0INIT	CRC0VAL	CRC0PNT[1:0]	
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x92
+Bit	Name	Function		
+7:5	Unused	Unused. 
+Read = 000b; Write = Don’t Care.		
+4	CRC0SEL	CRC0 Polynomial Select Bit.
+This bit selects the CRC0 polynomial and result length (32-bit or 16-bit).
+0: CRC0 uses the 32-bit polynomial 0x04C11DB7 for calculating the CRC result.
+1: CRC0 uses the 16-bit polynomial 0x1021 for calculating the CRC result.		
+3	CRC0INIT	CRC0 Result Initialization Bit.
+Writing a 1 to this bit initializes the entire CRC result based on CRC0VAL.		
+2	CRC0VAL	CRC0 Set Value Initialization Bit.
+This bit selects the set value of the CRC result.
+0: CRC result is set to 0x00000000 on write of 1 to CRC0INIT.
+1: CRC result is set to 0xFFFFFFFF on write of 1 to CRC0INIT. 		
+1:0	CRC0PNT[1:0]	CRC0 Result Pointer.
+Specifies the byte of the CRC result to be read/written on the next access to CRC0DAT. The value of these bits will auto-increment upon each read or write.
+For CRC0SEL = 0:
+00: CRC0DAT accesses bits 7–0 of the 32-bit CRC result.
+01: CRC0DAT accesses bits 15–8 of the 32-bit CRC result.
+10: CRC0DAT accesses bits 23–16 of the 32-bit CRC result.
+11: CRC0DAT accesses bits 31–24 of the 32-bit CRC result.
+For CRC0SEL = 1:
+00: CRC0DAT accesses bits 7–0 of the 16-bit CRC result.
+01: CRC0DAT accesses bits 15–8 of the 16-bit CRC result.
+10: CRC0DAT accesses bits 7–0 of the 16-bit CRC result. 
+11: CRC0DAT accesses bits 15–8 of the 16-bit CRC result.		
+Note:	Upon initiation of an automatic CRC calculation, the third opcode byte fetched from program memory is indeterminate. Therefore, writes to CRC0CN that initiate a CRC operation must be immediately followed by a benign 3-byte instruction whose third byte is a don’t care. An example of such an instruction is a 3-byte MOV that targets the CRC0FLIP register. When programming in ‘C’, the dummy value written to CRC0FLIP should be a non-zero value to prevent the compiler from generating a 2-byte MOV instruction.				
+
+
+SFR Definition 15.2. CRC0IN: CRC0 Data Input
+Bit	7	6	5	4	3	2	1	0
+Name	CRC0IN[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x93
+Bit	Name	Function		
+7:0	CRC0IN[7:0]	CRC0 Data Input.
+Each write to CRC0IN results in the written data being computed into the existing CRC result according to the CRC algorithm described in Section 15.1		
+
+
+SFR Definition 15.3. CRC0DAT: CRC0 Data Output
+Bit	7	6	5	4	3	2	1	0
+Name	CRC0DAT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x91
+Bit	Name	Function		
+7:0	CRC0DAT[7:0]	CRC0 Data Output.
+Each read or write performed on CRC0DAT targets the CRC result bits pointed to by the CRC0 Result Pointer (CRC0PNT bits in CRC0CN). 		
+
+
+SFR Definition 15.4. CRC0AUTO: CRC0 Automatic Control
+Bit	7	6	5	4	3	2	1	0
+Name	AUTOEN	CRCDONE	CRC0ST[5:0]					
+Type	R/W							R/W
+Reset	0	1	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x96
+Bit	Name	Function		
+7	AUTOEN	Automatic CRC Calculation Enable.
+When AUTOEN is set to 1, any write to CRC0CN will initiate an automatic CRC starting at Flash sector CRC0ST and continuing for CRC0CNT sectors.		
+6	CRCDONE	CRCDONE Automatic CRC Calculation Complete.
+Set to 0 when a CRC calculation is in progress. Note that code execution is stopped during a CRC calculation, therefore reads from firmware will always return 1.		
+5:0	CRC0ST[5:0]	Automatic CRC Calculation Starting Flash Sector.
+These bits specify the Flash sector to start the automatic CRC calculation. The starting address of the first Flash sector included in the automatic CRC calculation is CRC0ST x 1024.		
+
+
+SFR Definition 15.5. CRC0CNT: CRC0 Automatic Flash Sector Count
+Bit	7	6	5	4	3	2	1	0
+Name			CRC0CNT[5:0]					
+Type	R/W							R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x97
+Bit	Name	Function		
+7:6	Unused	Unused. 
+Read = 00b; Write = Don’t Care.		
+5:0	CRC0CNT[5:0]	Automatic CRC Calculation Flash Sector Count.
+These bits specify the number of Flash sectors to include in an automatic CRC calculation. The starting address of the last Flash sector included in the automatic CRC calculation is (CRC0ST+CRC0CNT) x 1024.		
+
+
+15.6.	CRC0 Bit Reverse Feature
+CRC0 includes hardware to reverse the bit order of each bit in a byte as shown in Figure 15.2. Each byte of data written to CRC0FLIP is read back bit reversed. For example, if 0xC0 is written to CRC0FLIP, the data read back is 0x03. Bit reversal is a useful mathematical function used in algorithms such as the FFT.
+
+Figure 15.2. Bit Reverse Register
+
+SFR Definition 15.6. CRC0FLIP: CRC0 Bit Flip
+Bit	7	6	5	4	3	2	1	0
+Name	CRC0FLIP[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0x95
+Bit	Name	Function		
+7:0	CRC0FLIP[7:0]	CRC0 Bit Flip.
+Any byte written to CRC0FLIP is read back in a bit-reversed order, i.e. the written LSB becomes the MSB. For example:
+If 0xC0 is written to CRC0FLIP, the data read back will be 0x03.
+If 0x05 is written to CRC0FLIP, the data read back will be 0xA0.		
+
+

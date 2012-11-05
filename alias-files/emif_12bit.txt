@@ -1,0 +1,188 @@
+﻿10.	External Data Memory Interface and On-Chip XRAM
+The C8051F92x-C8051F93x MCUs include on-chip RAM mapped into the external data memory space (XRAM). 32-pin devices (C8051F930 and C8051F920) also have an External Data Memory Interface which can be used to access off-chip memories and memory-mapped devices connected to the GPIO ports. The external memory space may be accessed using the external move instruction (MOVX) with the target address specified in either the data pointer (DPTR), or with the target address low byte in R0 or R1 and the target address high byte in the External Memory Interface Control Register (EMI0CN, shown in SFR Definition 10.1). 
+When using the MOVX instruction to access on-chip RAM, no additional initialization is required and the MOVX instruction execution time is as specified in the CIP-51 chapter. When using the MOVX instruction to access off-chip RAM or memory-mapped devices, then both the Port I/O and EMIF should be configured for communication with external devices (See Section 10.2) and MOVX instruction timing is based on the value programmed in the External Memory Interface Timing Control Register (EMI0TC, see “External Memory Interface Timing” on page 121).
+Important Note: MOVX write operations can be configured to target Flash memory, instead of XRAM. See Section “13. Flash Memory” on page 148 for more details. The MOVX instruction accesses XRAM by default. 
+10.1.	Accessing XRAM
+The XRAM memory space is accessed using the MOVX instruction. The MOVX instruction has two forms, both of which use an indirect addressing method. The first method uses the Data Pointer, DPTR, a 16-bit register which contains the effective address of the XRAM location to be read from or written to. The second method uses R0 or R1 in combination with the EMI0CN register to generate the effective XRAM address. Examples of both of these methods are given below.
+10.1.1.	16-Bit MOVX Example
+The 16-bit form of the MOVX instruction accesses the memory location pointed to by the contents of the DPTR register. The following series of instructions reads the value of the byte at address 0x1234 into the accumulator A:
+		MOV		DPTR, #1234h						; load DPTR with 16-bit address to read (0x1234)
+		MOVX		A, @DPTR						; load contents of 0x1234 into accumulator A
+
+The above example uses the 16-bit immediate MOV instruction to set the contents of DPTR. Alternately, the DPTR can be accessed through the SFR registers DPH, which contains the upper 8-bits of DPTR, and DPL, which contains the lower 8-bits of DPTR.
+10.1.2.	8-Bit MOVX Example
+The 8-bit form of the MOVX instruction uses the contents of the EMI0CN SFR to determine the upper 8-bits of the effective address to be accessed and the contents of R0 or R1 to determine the lower 8-bits of the effective address to be accessed. The following series of instructions read the contents of the byte at address 0x1234 into the accumulator A.
+		MOV		EMI0CN, #12h						; load high byte of address into EMI0CN
+		MOV		R0, #34h						; load low byte of address into R0 (or R1)
+		MOVX		a, @R0						; load contents of 0x1234 into accumulator A
+
+
+10.2.	Configuring the External Memory Interface for Off-Chip Access
+Configuring the External Memory Interface for off-chip memory space access consists of four steps:
+	1.	Configure the Output Modes of the associated port pins as either push-pull or open-drain (push-pull is most common) and skip the associated pins in the Crossbar (if necessary).
+See Section “21. Port Input/Output” on page 216 to determine which port pins are associated with the External Memory Interface.
+	2.	Configure port latches to “park” the EMIF pins in a dormant state (usually by setting them to logic 1).
+	3.	Select the memory mode (on-chip only, split mode without bank select, split mode with bank select, or off-chip only).
+	4.	Set up timing to interface with off-chip memory or peripherals.
+
+Each of these five steps is explained in detail in the following sections. The configuration selection bits are located in the EMI0CF register shown in SFR Definition 10.2.
+10.3.	External Memory Interface Port Input/Output Configuration
+When the External Memory Interface is used for off-chip access, the associated port pins are shared between the EMIF and the GPIO port latches. The Crossbar should be configured not to assign any signals to the associated port pins. In most configurations, the RD, WR, and ALE pins need to be skipped in the Crossbar to ensure they are controlled by their port latches. See Section “21. Port Input/Output” on page 216 to determine which port pins are associated with the External Memory Interface.
+The External Memory Interface claims the associated Port pins for memory operations ONLY during the execution of an off-chip MOVX instruction. Once the MOVX instruction has completed, control of the Port pins reverts to the Port latches. The Port latches should be explicitly configured to “park” the External Memory Interface pins in a dormant state, most commonly by setting them to a logic 1.
+During the execution of the MOVX instruction, the External Memory Interface will explicitly disable the drivers on all Port pins that are acting as Inputs (Data[7:0] during a READ operation, for example). For port pins acting as Outputs (Data[7:0] during a WRITE operation, for example), the External memory interface will not automatically enable the output driver. The output mode (whether the pin is configured as Open-Drain or Push-Pull) of bi-directional and output only pins should be configured to the desired mode when the pin is being used as an output.
+The Output mode of the Port pins while controlled by the GPIO latch is unaffected by the External Memory Interface operation, and remains controlled by the PnMDOUT registers. In most cases, the output modes of all EMIF pins should be configured for push-pull mode. 
+10.4.	Multiplexed External Memory Interface 
+For a Multiplexed external memory interface, the Data Bus and the lower 8-bits of the Address Bus share the same Port pins: AD[7:0]. For most devices with an 8-bit interface, the upper address bits are not used and can be used as GPIO if the external memory interface is used in 8-bit non-banked mode. If the external memory interface is used in 8-bit banked mode, or 16-bit mode, then the address pins will be driven with the upper 4 address bits and cannot be used as GPIO. 
+Figure 10.1. Multiplexed Configuration Example
+Many devices with a slave parallel memory interface, such as SRAM chips, only support a non-multiplexed memory bus. When interfacing to such a device, an external latch (74HC373 or equivalent logic gate) can be used to hold the lower 8-bits of the RAM address during the second half of the memory cycle when the address/data bus contains data. The external latch, controlled by the ALE (Address Latch Enable) signal, is automatically driven by the External Memory Interface logic. An example SRAM interface showing multiplexed to non-multiplexed conversion is shown in Figure 10.2. 
+This example is showing that the external MOVX operation can be broken into two phases delineated by the state of the ALE signal. During the first phase, ALE is high and the lower 8-bits of the Address Bus are presented to AD[7:0]. During this phase, the address latch is configured such that the Q outputs reflect the states of the D inputs. When ALE falls, signaling the beginning of the second phase, the address latch outputs remain fixed and are no longer dependent on the latch inputs. Later in the second phase, the Data Bus controls the state of the AD[7:0] port at the time RD or WR is asserted. 
+See Section “10.6. External Memory Interface Timing” on page 121 for detailed timing diagrams.
+
+Figure 10.2. Multiplexed to Non-Multiplexed Configuration Example
+
+
+10.5.	External Memory Interface Operating Modes
+The external data memory space can be configured in one of four operating modes, shown in Figure 10.3, based on the EMIF Mode bits in the EMI0CF register (SFR Definition 10.2). These modes are summarized below. Timing diagrams for the different modes can be found in Section “10.6. External Memory Interface Timing” on page 121.
+10.5.1.	Internal XRAM Only
+When EMI0CF.[3:2] are set to 00, all MOVX instructions will target the internal XRAM space on the device. Memory accesses to addresses beyond the populated space will wrap, and will always target on-chip XRAM. As an example, if the entire address space is consecutively written and the data pointer is incremented after each write, the write pointer will always point to the first byte of on-chip XRAM after the last byte of on-chip XRAM has been written.
+•	8-bit MOVX operations use the contents of EMI0CN to determine the high-byte of the effective address and R0 or R1 to determine the low-byte of the effective address.
+•	16-bit MOVX operations use the contents of the 16-bit DPTR to determine the effective address.
+10.5.2.	Split Mode without Bank Select
+When EMI0CF.[3:2] are set to 01, the XRAM memory map is split into two areas, on-chip space and off-chip space.
+•	Effective addresses below the on-chip XRAM boundary will access on-chip XRAM space.
+•	Effective addresses above the on-chip XRAM boundary will access off-chip space.
+•	8-bit MOVX operations use the contents of EMI0CN to determine whether the memory access is on-chip or off-chip. However, in the “No Bank Select” mode, an 8-bit MOVX operation will not drive the upper 4-bits A[11:8] of the Address Bus during an off-chip access. This allows the user to manipulate the upper address bits at will by setting the Port state directly via the port latches. This behavior is in contrast with “Split Mode with Bank Select” described below. The lower 8-bits of the Address Bus A[7:0] are driven, determined by R0 or R1.
+•	16-bit MOVX operations use the contents of DPTR to determine whether the memory access is on-chip or off-chip, and unlike 8-bit MOVX operations, the full 12-bits of the Address Bus A[11:0] are driven during the off-chip transaction.
+
+Figure 10.3. EMIF Operating Modes
+10.5.3.	Split Mode with Bank Select
+When EMI0CF.[3:2] are set to 10, the XRAM memory map is split into two areas, on-chip space and off-chip space.
+•	Effective addresses below the on-chip XRAM boundary will access on-chip XRAM space.
+•	Effective addresses above the on-chip XRAM boundary will access off-chip space.
+•	8-bit MOVX operations use the contents of EMI0CN to determine whether the memory access is on-chip or off-chip. The upper 4-bits of the Address Bus A[11:8] are determined by EMI0CN, and the lower 8-bits of the Address Bus A[7:0] are determined by R0 or R1. All 12-bits of the Address Bus A[11:0] are driven in “Bank Select” mode.
+•	16-bit MOVX operations use the contents of DPTR to determine whether the memory access is on-chip or off-chip, and the full 12-bits of the Address Bus A[11:0] are driven during the off-chip transaction.
+10.5.4.	External Only
+When EMI0CF[3:2] are set to 11, all MOVX operations are directed to off-chip space. On-chip XRAM is not visible to the CPU. This mode is useful for accessing off-chip memory located between 0x0000 and the on-chip XRAM boundary.
+•	8-bit MOVX operations ignore the contents of EMI0CN. The upper Address bits A[11:8] are not driven (identical behavior to an off-chip access in “Split Mode without Bank Select” described above). This allows the user to manipulate the upper address bits at will by setting the Port state directly. The lower 8-bits of the effective address A[7:0] are determined by the contents of R0 or R1.
+•	16-bit MOVX operations use the contents of DPTR to determine the effective address A[11:0]. The full 12-bits of the Address Bus A[11:0] are driven during the off-chip transaction.
+10.6.	External Memory Interface Timing
+The timing parameters of the External Memory Interface can be configured to enable connection to devices having different setup and hold time requirements. The Address Setup time, Address Hold time, RD and WR strobe widths, and in multiplexed mode, the width of the ALE pulse are all programmable in units of SYSCLK periods through EMI0TC, shown in SFR Definition 10.3, and EMI0CF[1:0].
+The timing for an off-chip MOVX instruction can be calculated by adding 4 SYSCLK cycles to the timing parameters defined by the EMI0TC register. Assuming non-multiplexed operation, the minimum execution time for an off-chip XRAM operation is 5 SYSCLK cycles (1 SYSCLK for RD or WR pulse + 4 SYSCLKs). For multiplexed operations, the Address Latch Enable signal will require a minimum of 2 additional SYSCLK cycles. Therefore, the minimum execution time of an off-chip XRAM operation in multiplexed mode is 7 SYSCLK cycles (2 SYSCLKs for ALE, 1 for RD or WR + 4 SYSCLKs). The programmable setup and hold times default to the maximum delay settings after a reset.
+Table 10.1 lists the ac parameters for the External Memory Interface, and Figure 10.1 through Figure 10.6 show the timing diagrams for the different External Memory Interface modes and MOVX operations. See Section “21. Port Input/Output” on page 216 to determine which port pins are mapped to the ADDR[11:8], AD[7:0], ALE, RD, and WR signals.
+10.7.	EMIF Special Function Registers
+The special function registers used by the EMIF are EMI0CN, EMI0CF, and EMI0TC. These registers are described in the following register descriptions.
+
+SFR Definition 10.1. EMI0CN: External Memory Interface Control
+Bit	7	6	5	4	3	2	1	0
+Name				PGSEL[4:0]				
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xAA
+
+Bit	Name	Function		
+7:5	Unused	Unused.
+Read = 000b; Write = Don’t Care		
+4:0	PGSEL	XRAM Page Select.
+The EMI0CN register provides the high byte of the 16-bit external data memory address when using an 8-bit MOVX command, effectively selecting a 256-byte page of RAM. Since the upper (unused) bits of the register are always zero, the PGSEL determines which page of XRAM is accessed. When the MSB of PGSEL is set to 1 and the EMIF is configured for one of the two split-modes, 8-bit MOVX instructions target off-chip memory.
+
+For Example: 
+If EMI0CN = 0x01, addresses 0x0100 through 0x01FF of on-chip memory will be accessed.
+If EMI0CN = 0x0F, addresses 0x0F00 through 0x0FFF of on-chip memory will be accessed.
+If EMI0CN = 0x11, addresses 0x0100 through 0x01FF of off-chip memory will be accessed.
+If EMI0CN = 0x1F, addresses 0x0F00 through 0x0FFF of off-chip memory will be accessed.		
+
+
+
+SFR Definition 10.2. EMI0CF: External Memory Configuration
+Bit	7	6	5	4	3	2	1	0
+Name					EMD[1:0]		EALE[1:0]	
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	1	1
+
+
+SFR Page = 0x0; SFR Address = 0xAB
+
+Bit	Name	Function	
+7:4	Unused	Unused.
+Read = 0000b. Write = Don’t Care.	
+3:2	EMD	EMIF Operating Mode Select.
+Selects the operating mode of the External Memory Interface. See Section “10.5. External Memory Interface Operating Modes” on page 120.
+00: Internal Only.
+01: Split Mode without Bank Select.
+10: Split Mode with Bank Select.
+11: External Only.	
+1:0	EALE	ALE Pulse Width Select Bits.
+Selects the ALE pulse width.
+00: ALE high and ALE low pulse width = 1 SYSCLK cycle.
+01: ALE high and ALE low pulse width = 2 SYSCLK cycles.
+10: ALE high and ALE low pulse width = 3 SYSCLK cycles.
+11: ALE high and ALE low pulse width = 4 SYSCLK cycles.	
+
+
+
+SFR Definition 10.3. EMI0TC: External Memory Timing Control
+Bit	7	6	5	4	3	2	1	0
+Name	EAS[1:0]		EWR[3:0]				EAH[1:0]	
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	1	1	1	1	1	1	1	1
+
+
+SFR Page = 0x0; SFR Address = 0xAF
+
+Bit	Name	Function	
+7:4	EAS	Address Setup Time Select Bits.
+Controls the timing parameter TACS.
+00: Address Setup Time = 0 SYSCLK cycles.
+01: Address Setup Time = 1 SYSCLK cycles.
+10: Address Setup Time = 2 SYSCLK cycles.
+11: Address Setup Time = 3 SYSCLK cycles.	
+3:2	EWR	RD and WR Pulse Width Select.
+Controls the timing parameter TACW.
+0000: WR and RD pulse width = 1 SYSCLK cycle.
+0001: WR and RD pulse width = 2 SYSCLK cycles.
+0010: WR and RD pulse width = 3 SYSCLK cycles.
+0011: WR and RD pulse width = 4 SYSCLK cycles.
+0100: WR and RD pulse width = 5 SYSCLK cycles.
+0101: WR and RD pulse width = 6 SYSCLK cycles.
+0110: WR and RD pulse width = 7 SYSCLK cycles.
+0111: WR and RD pulse width = 8 SYSCLK cycles.
+1000: WR and RD pulse width = 9 SYSCLK cycles.
+1001: WR and RD pulse width = 10 SYSCLK cycles.
+1010: WR and RD pulse width = 11 SYSCLK cycles.
+1011: WR and RD pulse width = 12 SYSCLK cycles.
+1100: WR and RD pulse width = 13 SYSCLK cycles.
+1101: WR and RD pulse width = 14 SYSCLK cycles.
+1110: WR and RD pulse width = 15 SYSCLK cycles.
+1111: WR and RD pulse width = 16 SYSCLK cycles.	
+1:0	EAH	Address Hold Time Select Bits.
+Controls the timing parameter TACH.
+00: Address Hold Time = 0 SYSCLK cycles.
+01: Address Hold Time = 1 SYSCLK cycles.
+10: Address Hold Time = 2 SYSCLK cycles.
+11: Address Hold Time = 3 SYSCLK cycles.	
+
+
+10.8.	EMIF Timing Diagrams
+10.8.1.	Multiplexed 16-bit MOVX: EMI0CF[3:2] = 01, 10, or 11
+
+Figure 10.4. Multiplexed 16-bit MOVX Timing
+10.8.2.	Multiplexed 8-bit MOVX without Bank Select: EMI0CF[3:2] = 01 or 11.
+
+Figure 10.5. Multiplexed 8-bit MOVX without Bank Select Timing
+10.8.2.1.	Multiplexed 8-bit MOVX with Bank Select: EMI0CF[3:2] = 10.
+
+Figure 10.6. Multiplexed 8-bit MOVX with Bank Select Timing
+
+Table 10.1. AC Parameters for External Memory Interface
+Parameter	Description	Min	Max	Units
+TACS	Address/Control Setup Time	0	3 x TSYSCLK	ns
+TACW	Address/Control Pulse Width	1 x TSYSCLK	16 x TSYSCLK	ns
+TACH	Address/Control Hold Time	0	3 x TSYSCLK	ns
+TALEH	Address Latch Enable High Time	1 x TSYSCLK	4 x TSYSCLK	ns
+TALEL	Address Latch Enable Low Time	1 x TSYSCLK	4 x TSYSCLK	ns
+TWDS	Write Data Setup Time	1 x TSYSCLK	19 x TSYSCLK	ns
+TWDH	Write Data Hold Time	0	3 x TSYSCLK	ns
+TRDS	Read Data Setup Time	20	—	ns
+TRDH	Read Data Hold Time	0	—	ns
+Note:	TSYSCLK is equal to one period of the device system clock (SYSCLK).				

@@ -1,0 +1,317 @@
+﻿
+
+ *
+
+*Round the result up.
+
+                     or
+
+
+
+
+or
+
+
+or
+
+Note:	The value of CSAMPLE depends on the PGA Gain. See Table 4.9 for details.
+5.	10-Bit SAR ADC with 16-bit Auto-Averaging Accumulator and Autonomous Low Power Burst Mode
+The ADC0 on the C8051F93x-C8051F92x is a 300 ksps, 10-bit successive-approximation-register (SAR) ADC with integrated track-and-hold and programmable window detector. ADC0 also has an autonomous low power Burst Mode which can automatically enable ADC0, capture and accumulate samples, then place ADC0 in a low power shutdown mode without CPU intervention. It also has a 16-bit accumulator that can automatically oversample and average the ADC results.
+The ADC is fully configurable under software control via Special Function Registers. The ADC0 operates in Single-ended mode and may be configured to measure various different signals using the analog multiplexer described in “5.5. ADC0 Analog Multiplexer” on page 84. The voltage reference for the ADC is selected as described in “5.7. Voltage and Ground Reference Options” on page 89. 
+
+Figure 5.1. ADC0 Functional Block Diagram
+5.1.	Output Code Formatting
+The registers ADC0H and ADC0L contain the high and low bytes of the output conversion code from the ADC at the completion of each conversion. Data can be right-justified or left-justified, depending on the setting of the AD0SJST[2:0]. When the repeat count is set to 1, conversion codes are represented as 10-bit unsigned integers. Inputs are measured from 0 to VREF x 1023/1024. Example codes are shown below for both right-justified and left-justified data. Unused bits in the ADC0H and ADC0L registers are set to 0.
+Input Voltage	Right-Justified ADC0H:ADC0L (AD0SJST = 000)	Left-Justified ADC0H:ADC0L (AD0SJST = 100)
+VREF x 1023/1024	0x03FF	0xFFC0
+VREF x 512/1024	0x0200	0x8000
+VREF x 256/1024	0x0100	0x4000
+0	0x0000	0x0000
+
+When the repeat count is greater than 1, the output conversion code represents the accumulated result of the conversions performed and is updated after the last conversion in the series is finished. Sets of 4, 8, 16, 32, or 64 consecutive samples can be accumulated and represented in unsigned integer format. The repeat count can be selected using the AD0RPT bits in the ADC0AC register. When a repeat count higher than 1, the ADC output must be right-justified (AD0SJST = 0xx); unused bits in the ADC0H and ADC0L registers are set to 0. The example below shows the right-justified result for various input voltages and repeat counts. Accumulating 2n samples is equivalent to left-shifting by n bit positions when all samples returned from the ADC have the same value.
+
+Input Voltage	Repeat Count = 4	Repeat Count = 16	Repeat Count = 64
+VREF x 1023/1024	0x0FFC	0x3FF0	0xFFC0
+VREF x 512/1024	0x0800	0x2000	0x8000
+VREF x 511/1024	0x07FC	0x1FF0	0x7FC0
+0	0x0000	0x0000	0x0000
+
+The AD0SJST bits can be used to format the contents of the 16-bit accumulator. The accumulated result can be shifted right by 1, 2, or 3 bit positions. Based on the principles of oversampling and averaging, the effective ADC resolution increases by 1 bit each time the oversampling rate is increased by a factor of 4. The example below shows how to increase the effective ADC resolution by 1, 2, and 3 bits to obtain an effective ADC resolution of 11-bit, 12-bit, or 13-bit respectively without CPU intervention.
+
+Input Voltage	Repeat Count = 4
+Shift Right = 1
+11-Bit Result	Repeat Count = 16
+Shift Right = 2
+12-Bit Result	Repeat Count = 64
+Shift Right = 3
+13-Bit Result
+VREF x 1023/1024	0x07F7	0x0FFC	0x1FF8
+VREF x 512/1024	0x0400	0x0800	0x1000
+VREF x 511/1024	0x03FE	0x04FC	0x0FF8
+0	0x0000	0x0000	0x0000
+
+5.2.	Modes of Operation
+ADC0 has a maximum conversion speed of 300 ksps. The ADC0 conversion clock (SARCLK) is a divided version of the system clock when Burst Mode is disabled (BURSTEN = 0), or a divided version of the low power oscillator when Burst Mode is enabled (BURSEN = 1). The clock divide value is determined by the AD0SC bits in the ADC0CF register.
+5.2.1.	Starting a Conversion
+A conversion can be initiated in one of five ways, depending on the programmed states of the ADC0 Start of Conversion Mode bits (AD0CM2–0) in register ADC0CN. Conversions may be initiated by one of the following: 
+	1.	Writing a 1 to the AD0BUSY bit of register ADC0CN 
+	2.	A Timer 0 overflow (i.e., timed continuous conversions)
+	3.	A Timer 2 overflow
+	4.	A Timer 3 overflow
+	5.	A rising edge on the CNVSTR input signal (pin P0.6)
+Writing a 1 to AD0BUSY provides software control of ADC0 whereby conversions are performed "on-demand". During conversion, the AD0BUSY bit is set to logic 1 and reset to logic 0 when the conversion is complete. The falling edge of AD0BUSY triggers an interrupt (when enabled) and sets the ADC0 interrupt flag (AD0INT). When polling for ADC conversion completions, the ADC0 interrupt flag (AD0INT) should be used. Converted data is available in the ADC0 data registers, ADC0H:ADC0L, when bit AD0INT is logic 1. When Timer 2 or Timer 3 overflows are used as the conversion source, Low Byte overflows are used if Timer 2/3 is in 8-bit mode; High byte overflows are used if Timer 2/3 is in 16-bit mode. See “25. Timers” on page 283 for timer configuration.
+Important Note About Using CNVSTR: The CNVSTR input pin also functions as Port pin P0.6. When the CNVSTR input is used as the ADC0 conversion source, Port pin P0.6 should be skipped by the Digital Crossbar. To configure the Crossbar to skip P0.6, set to 1 Bit 6 in register P0SKIP. See “21. Port Input/Output” on page 216 for details on Port I/O configuration.
+Important Note: When operating the device in one-cell mode, there is an option available to automatically synchronize the start of conversion with the quietest portion of the dc-dc converter switching cycle. Activating this option may help to reduce interference from internal or external power supply noise generated by the dc-dc converter. Asserting this bit will hold off the start of an ADC conversion initiated by any of the methods described above until the ADC receives a synchronizing signal from the dc-dc converter. The delay in initiation of the conversion can be as much as one cycle of the dc-dc converter clock, which is 625 ns at the minimum dc-dc clock frequency of 1.6 MHz. For rev C and later C8051F93x-92x devices, the synchronization feature also causes the dc-dc converter clock to be used as the ADC0 conversion clock. The maximum conversion rate will be limited to approximately 170 ksps at the maximum dc-dc converter clock rate of 3.2 MHz. In this mode, the ADC0 SAR Conversion Clock Divider must be set to 1 by setting AD0SC[4:0] = 00000b in SFR register ADC0CF. To provide additional flexibility in minimizing noise, the ADC0 conversion clock provided by the dc-dc converter can be inverted by setting the AD0CKINV bit in the DC0CF register. For additional information on the synchronization feature, see the description of the SYNC bit in “SFR Definition 16.1.  DC0CN: DC-DC Converter Control” on page 181 and the description of the AD0CKINV bit in “SFR Definition 16.2.  DC0CF: DC-DC Converter Configuration” on page 182. This bit must be set to 0 in two-cell mode for the ADC to operate.
+5.2.2.	Tracking Modes
+Each ADC0 conversion must be preceded by a minimum tracking time in order for the converted result to be accurate. The minimum tracking time is given in Table 4.9. The AD0TM bit in register ADC0CN controls the ADC0 track-and-hold mode. In its default state when Burst Mode is disabled, the ADC0 input is continuously tracked, except when a conversion is in progress. When the AD0TM bit is logic 1, ADC0 operates in low-power track-and-hold mode. In this mode, each conversion is preceded by a tracking period of 3 SAR clocks (after the start-of-conversion signal). When the CNVSTR signal is used to initiate conversions in low-power tracking mode, ADC0 tracks only when CNVSTR is low; conversion begins on the rising edge of CNVSTR (see Figure 5.2). Tracking can also be disabled (shutdown) when the device is in low power standby or sleep modes. Low-power track-and-hold mode is also useful when AMUX settings are frequently changed, due to the settling time requirements described in “5.2.4. Settling Time Requirements” on page 73.
+
+Figure 5.2. 10-Bit ADC Track and Conversion Example Timing (BURSTEN = 0)
+5.2.3.	Burst Mode
+Burst Mode is a power saving feature that allows ADC0 to remain in a low power state between conversions. When Burst Mode is enabled, ADC0 wakes from a low power state, accumulates 1, 4, 8, 16, 32, or 64 using an internal burst mode clock (approximately 25 MHz), then re-enters a low power state. Since the burst mode clock is independent of the system clock, ADC0 can perform multiple conversions then enter a low power state within a single system clock cycle, even if the system clock is slow (e.g., 32.768 kHz), or suspended.
+Burst Mode is enabled by setting BURSTEN to logic 1. When in burst mode, AD0EN controls the ADC0 idle power state (i.e. the state ADC0 enters when not tracking or performing conversions). If AD0EN is set to logic 0, ADC0 is powered down after each burst. If AD0EN is set to logic 1, ADC0 remains enabled after each burst. On each convert start signal, ADC0 is awakened from its Idle Power State. If ADC0 is powered down, it will automatically power up and wait the programmable Power-Up Time controlled by the AD0PWR bits. Otherwise, ADC0 will start tracking and converting immediately. Figure 5.3 shows an example of Burst Mode Operation with a slow system clock and a repeat count of 4. 
+When burst mode is enabled, a single convert start will initiate a number of conversions equal to the repeat count. When burst mode is disabled, a convert start is required to initiate each conversion. In both modes, the ADC0 End of Conversion Interrupt Flag (AD0INT) will be set after “repeat count” conversions have been accumulated. Similarly, the Window Comparator will not compare the result to the greater-than and less-than registers until “repeat count” conversions have been accumulated.
+In Burst Mode, tracking is determined by the settings in AD0PWR and AD0TK. The default settings for these registers will work in most applications without modification; however, settling time requirements may need adjustment in some applications. Refer to “5.2.4. Settling Time Requirements” on page 73 for more details.
+Notes:
+•	Setting AD0TM to 1 will insert an additional 3 SAR clocks of tracking before each conversion, regardless of the settings of AD0PWR and AD0TK.
+•	When using Burst Mode, care must be taken to issue a convert start signal no faster than once every four SYSCLK periods. This includes external convert start signals.
+•	A rising edge of external start-of-conversion (CNVSTR) will cause only one ADC conversion in Burst Mode, regardless of the value of the Repeat Count field. The end-of-conversion interrupt will occur after the number of conversions specified in Repeat Count have completed. In other words, if Repeat Count is set to 4, four pulses on CNVSTR will cause an ADC end-of-conversion interrupt. Refer to the bottom portion of Figure 5.3, “Burst Mode Tracking Example with Repeat Count Set to 4,” on page 72 for an example.
+•	To start multiple conversions in Burst Mode with one external start-of-conversion signal, the external interrupts (/INT0 or /INT1) or Port Match can be used to trigger an ISR that writes to AD0BUSY. External interrupts are configurable to be active low or active high, edge or level sensitive, but is only available on a limited number of pins. Port Match is only level sensitive, but is available on more port pins than the external interrupts. Refer to Section “12.6. External Interrupts INT0 and INT1” on page 146 for details on external interrupts and Section “21.4. Port Match” on page 227 for details on Port Match.
+
+Figure 5.3. Burst Mode Tracking Example with Repeat Count Set to 4
+5.2.4.	Settling Time Requirements
+A minimum amount of tracking time is required before each conversion can be performed, to allow the sampling capacitor voltage to settle. This tracking time is determined by the AMUX0 resistance, the ADC0 sampling capacitance, any external source resistance, and the accuracy required for the conversion. Note that in low-power tracking mode, three SAR clocks are used for tracking at the start of every conversion. For many applications, these three SAR clocks will meet the minimum tracking time requirements, and higher values for the external source impedance will increase the required tracking time.
+Figure 5.4 shows the equivalent ADC0 input circuit. The required ADC0 settling time for a given settling accuracy (SA) may be approximated by Equation 5.1. When measuring the Temperature Sensor output or VDD with respect to GND, RTOTAL reduces to RMUX. See Table 4.9 for ADC0 minimum settling time requirements as well as the mux impedance and sampling capacitor values.
+
+Equation 5.1. ADC0 Settling Time Requirements
+Where:
+SA is the settling accuracy, given as a fraction of an LSB (for example, 0.25 to settle within 1/4 LSB)
+t is the required settling time in seconds
+RTOTAL is the sum of the AMUX0 resistance and any external source resistance.
+n is the ADC resolution in bits (10).
+
+Figure 5.4. ADC0 Equivalent Input Circuits
+5.2.5.	Gain Setting
+The ADC has gain settings of 1x and 0.5x. In 1x mode, the full scale reading of the ADC is determined directly by VREF. In 0.5x mode, the full-scale reading of the ADC occurs when the input voltage is VREF x 2. The 0.5x gain setting can be useful to obtain a higher input Voltage range when using a small VREF voltage, or to measure input voltages that are between VREF and VDD. Gain settings for the ADC are controlled by the AMP0GN bit in register ADC0CF.
+5.3.	8-Bit Mode
+Setting the ADC08BE bit in register ADC0CF to 1 will put the ADC in 8-bit mode.In 8-bit mode, only the 8 MSBs of data are converted, allowing the conversion to be completed in two fewer SAR clock cycles than a 10-bit conversion. This can result in an overall lower power consumption since the system can spend more time in a low power mode. The two LSBs of a conversion are always 00 in this mode, and the ADC0L register will always read back 0x00. 
+
+SFR Definition 5.1. ADC0CN: ADC0 Control
+Bit	7	6	5	4	3	2	1	0
+Name	AD0EN	BURSTEN	AD0INT	AD0BUSY	AD0WINT	ADC0CM		
+Type	R/W	R/W	R/W	W	R/W	R/W		
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xE8; bit-addressable; 
+Bit	Name	Function		
+7	AD0EN	ADC0 Enable.
+0: ADC0 Disabled (low-power shutdown).
+1: ADC0 Enabled (active and ready for data conversions).		
+6	BURSTEN	ADC0 Burst Mode Enable.
+0: ADC0 Burst Mode Disabled.
+1: ADC0 Burst Mode Enabled.		
+5	AD0INT	ADC0 Conversion Complete Interrupt Flag.
+Set by hardware upon completion of a data conversion (BURSTEN=0), or a burst of conversions (BURSTEN=1). Can trigger an interrupt. Must be cleared by software.		
+4	AD0BUSY	ADC0 Busy.
+Writing 1 to this bit initiates an ADC conversion when ADC0CM[2:0] = 000. 		
+3	AD0WINT	ADC0 Window Compare Interrupt Flag.
+Set by hardware when the contents of ADC0H:ADC0L fall within the window specified by ADC0GTH:ADC0GTL and ADC0LTH:ADC0LTL. Can trigger an interrupt. Must be cleared by software.		
+2:0	ADC0CM[2:0]	ADC0 Start of Conversion Mode Select.
+Specifies the ADC0 start of conversion source. 
+000: ADC0 conversion initiated on write of 1 to AD0BUSY.
+001: ADC0 conversion initiated on overflow of Timer 0.
+010: ADC0 conversion initiated on overflow of Timer 2.
+011: ADC0 conversion initiated on overflow of Timer 3.
+1xx: ADC0 conversion initiated on rising edge of CNVSTR.		
+
+
+SFR Definition 5.2. ADC0CF: ADC0 Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	AD0SC[4:0]					AD08BE	AD0TM	AMP0GN
+Type	R/W					R/W	R/W	R/W
+Reset	1	1	1	1	1	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xBC
+Bit	Name	Function		
+7:3	AD0SC[4:0]	ADC0 SAR Conversion Clock Divider.
+SAR Conversion clock is derived from FCLK by the following equation, where AD0SC refers to the 5-bit value held in bits AD0SC[4:0]. SAR Conversion clock requirements are given in Table 4.9.
+BURSTEN = 0: FCLK is the current system clock.	
+BURSTEN = 1: FCLK is the 20 MHz low power oscillator, independent of the system clock.
+		
+2	AD08BE	ADC0 8-Bit Mode Enable.
+0: ADC0 operates in 10-bit mode (normal operation).
+1: ADC0 operates in 8-bit mode.		
+1	AD0TM	ADC0 Track Mode.
+Selects between Normal or Delayed Tracking Modes. 
+0: Normal Track Mode: When ADC0 is enabled, conversion begins immediately following the start-of-conversion signal.
+1: Delayed Track Mode: When ADC0 is enabled, conversion begins 3 SAR clock cycles following the start-of-conversion signal. The ADC is allowed to track during this time.		
+0	AMP0GN	ADC0 Gain Control. 
+0: The on-chip PGA gain is 0.5.
+1: The on-chip PGA gain is 1.		
+
+
+SFR Definition 5.3. ADC0AC: ADC0 Accumulator Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	Reserved	AD0AE	AD0SJST			AD0RPT		
+Type	R/W	W	R/W			R/W		
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xBA
+Bit	Name	Function		
+7	Reserved	Reserved. 
+Read = 0b.		
+6	AD0AE	ADC0 Accumulate Enable.
+Enables multiple conversions to be accumulated when burst mode is disabled.
+0: ADC0H:ADC0L contain the result of the latest conversion when Burst Mode is disabled.
+1: ADC0H:ADC0L contain the accumulated conversion results when Burst Mode is disabled. Software must write 0x0000 to ADC0H:ADC0L to clear the accumulated result. 
+This bit is write-only. Always reads 0b.		
+5:3	AD0SJST[2:0]	ADC0 Accumulator Shift and Justify.
+Specifies the format of data read from ADC0H:ADC0L. 
+000: Right justified. No shifting applied.
+001: Right justified. Shifted right by 1 bit.
+010: Right justified. Shifted right by 2 bits.
+011: Right justified. Shifted right by 3 bits.
+100: Left justified. No shifting applied.
+All remaining bit combinations are reserved.		
+2:0	AD0RPT[2:0]	ADC0 Repeat Count.
+Selects the number of conversions to perform and accumulate in Burst Mode. This bit field must be set to 000 if Burst Mode is disabled.
+000: Perform and Accumulate 1 conversion.
+001: Perform and Accumulate 4 conversions.
+010: Perform and Accumulate 8 conversions.
+011: Perform and Accumulate 16 conversions.
+100: Perform and Accumulate 32 conversions.
+101: Perform and Accumulate 64 conversions.
+All remaining bit combinations are reserved.		
+
+
+SFR Definition 5.4. ADC0PWR: ADC0 Burst Mode Power-Up Time
+Bit	7	6	5	4	3	2	1	0
+Name	Reserved				AD0PWR[3:0]			
+Type	R	R	R	R	R/W			
+Reset	0	0	0	0	1	1	1	1
+
+SFR Page = 0xF; SFR Address = 0xBA
+Bit	Name	Function		
+7	Reserved	Reserved. 
+Read = 0b; Must write 0b.		
+6:4	Unused	Unused. 
+Read = 0000b; Write = Don’t Care.		
+3:0	AD0PWR[3:0]	ADC0 Burst Mode Power-Up Time.
+Sets the time delay required for ADC0 to power up from a low power state.
+For BURSTEN = 0:
+	ADC0 power state controlled by AD0EN.
+For BURSTEN = 1 and AD0EN = 1:
+	ADC0 remains enabled and does not enter a low power state after all conversions are complete.
+Conversions can begin immediately following the start-of-conversion signal.
+For BURSTEN = 1 and AD0EN = 0: 
+	ADC0 enters a low power state (as specified in Table 5.1) after all conversions are complete. 
+Conversions can begin a programmed delay after the start-of-conversion signal.
+
+The ADC0 Burst Mode Power-Up time is programmed according to the following equation: 
+		
+
+
+SFR Definition 5.5. ADC0TK: ADC0 Burst Mode Track Time
+Bit	7	6	5	4	3	2	1	0
+Name			AD0TK[5:0]					
+Type	R	R	R/W					
+Reset	0	0	0	1	0	1	1	0
+
+SFR Page = 0xF; SFR Address = 0xBD
+Bit	Name	Function		
+7:6	Unused	Unused. 
+Read = 00b; Write = Don’t Care.		
+5:0	AD0TK[5:0]	ADC0 Burst Mode Track Time.
+Sets the time delay between consecutive conversions performed in Burst Mode. 
+
+The ADC0 Burst Mode Track time is programmed according to the following 
+equation:
+		
+Notes:If AD0TM is set to 1, an additional 3 SAR clock cycles of Track time will be inserted prior to starting the conversion.
+The Burst Mode Track delay is not inserted prior to the first conversion. The required tracking time for the first conversion should be met by the Burst Mode Power-Up Time.				
+
+
+SFR Definition 5.6. ADC0H: ADC0 Data Word High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	ADC0[15:8]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xBE
+Bit	Name	Description	Read	Write
+7:0	ADC0[15:8]	ADC0 Data Word High Byte.	Most Significant Byte of the 16-bit ADC0 Accumulator formatted according to the settings in AD0SJST[2:0].	Set the most significant byte of the 16-bit ADC0 Accumulator to the value written.
+Note:	If Accumulator shifting is enabled, the most significant bits of the value read will be zeros. This register should not be written when the SYNC bit is set to 1.				
+
+
+SFR Definition 5.7. ADC0L: ADC0 Data Word Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	ADC0[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xBD;
+Bit	Name	Description	Read	Write
+7:0	ADC0[7:0]	ADC0 Data Word Low Byte.	Least Significant Byte of the 16-bit ADC0 Accumulator formatted according to the settings in AD0SJST[2:0].	Set the least significant byte of the 16-bit ADC0 Accumulator to the value written.
+Note:	If Accumulator shifting is enabled, the most significant bits of the value read will be the least significant bits of the accumulator high byte. This register should not be written when the SYNC bit is set to 1.				
+
+
+5.4.	Programmable Window Detector
+The ADC Programmable Window Detector continuously compares the ADC0 output registers to user-programmed limits, and notifies the system when a desired condition is detected. This is especially effective in an interrupt-driven system, saving code space and CPU bandwidth while delivering faster system response times. The window detector interrupt flag (AD0WINT in register ADC0CN) can also be used in polled mode. The ADC0 Greater-Than (ADC0GTH, ADC0GTL) and Less-Than (ADC0LTH, ADC0LTL) registers hold the comparison values. The window detector flag can be programmed to indicate when measured data is inside or outside of the user-programmed limits, depending on the contents of the ADC0 Less-Than and ADC0 Greater-Than registers.
+
+SFR Definition 5.8. ADC0GTH: ADC0 Greater-Than High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	AD0GT[15:8]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0xC4
+Bit	Name	Function		
+7:0	AD0GT[15:8]	ADC0 Greater-Than High Byte.
+Most Significant Byte of the 16-bit Greater-Than window compare register.		
+
+
+SFR Definition 5.9. ADC0GTL: ADC0 Greater-Than Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	AD0GT[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0xC3
+Bit	Name	Function		
+7:0	AD0GT[7:0]	ADC0 Greater-Than Low Byte.
+Least Significant Byte of the 16-bit Greater-Than window compare register.		
+Note:	In 8-bit mode, this register should be set to 0x00.				
+
+
+SFR Definition 5.10. ADC0LTH: ADC0 Less-Than High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	AD0LT[15:8]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC6
+Bit	Name	Function		
+7:0	AD0LT[15:8]	ADC0 Less-Than High Byte.
+Most Significant Byte of the 16-bit Less-Than window compare register.		
+
+
+SFR Definition 5.11. ADC0LTL: ADC0 Less-Than Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	AD0LT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC5
+Bit	Name	Function		
+7:0	AD0LT[7:0]	ADC0 Less-Than Low Byte.
+Least Significant Byte of the 16-bit Less-Than window compare register.		
+Note:	In 8-bit mode, this register should be set to 0x00.				
+
+
+5.4.1.	Window Detector In Single-Ended Mode
+Figure 5.5 shows two example window comparisons for right-justified data, with ADC0LTH:ADC0LTL = 0x0080 (128d) and ADC0GTH:ADC0GTL = 0x0040 (64d). The input voltage can range from 0 to VREF x (1023/1024) with respect to GND, and is represented by a 10-bit unsigned integer value. In the left example, an AD0WINT interrupt will be generated if the ADC0 conversion word (ADC0H:ADC0L) is within the range defined by ADC0GTH:ADC0GTL and ADC0LTH:ADC0LTL (if 0x0040 < ADC0H:ADC0L < 0x0080). In the right example, and AD0WINT interrupt will be generated if the ADC0 conversion word is outside of the range defined by the ADC0GT and ADC0LT registers (if ADC0H:ADC0L < 0x0040 or ADC0H:ADC0L > 0x0080). Figure 5.6 shows an example using left-justified data with the same comparison values.
+
+Figure 5.5. ADC Window Compare Example: Right-Justified Single-Ended Data
+
+Figure 5.6. ADC Window Compare Example: Left-Justified Single-Ended Data
+5.4.2.	ADC0 Specifications
+See “4. Electrical Characteristics” on page 45 for a detailed listing of ADC0 specifications. 

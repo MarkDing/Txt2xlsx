@@ -1,0 +1,332 @@
+﻿Note:	A value of 0x00 in the PCA0CPHn register is equal to 256 for this equation.
+26.	Programmable Counter Array
+The Programmable Counter Array (PCA0) provides enhanced timer functionality while requiring less CPU intervention than the standard 8051 counter/timers. The PCA consists of a dedicated 16-bit counter/timer and six 16-bit capture/compare modules. Each capture/compare module has its own associated I/O line (CEXn) which is routed through the Crossbar to Port I/O when enabled. The counter/timer is driven by a programmable timebase that can select between seven sources: system clock, system clock divided by four, system clock divided by twelve, the external oscillator clock source divided by 8, Timer 0 overflows, or an external clock signal on the ECI input pin. Each capture/compare module may be configured to operate independently in one of six modes: Edge-Triggered Capture, Software Timer, High-Speed Output, Frequency Output, 8 to 11-Bit PWM, or 16-Bit PWM (each mode is described in Section “26.3. Capture/Compare Modules” on page 308). The external oscillator clock option is ideal for real-time clock (RTC) functionality, allowing the PCA to be clocked by a precision external oscillator while the internal oscillator drives the system clock. The PCA is configured and controlled through the system controller's Special Function Registers. The PCA block diagram is shown in Figure 26.1
+Important Note: The PCA Module 5 may be used as a watchdog timer (WDT), and is enabled in this mode following a system reset. Access to certain PCA registers is restricted while WDT mode is enabled. See Section 26.4 for details.
+
+Figure 26.1. PCA Block Diagram
+26.1.	PCA Counter/Timer
+The 16-bit PCA counter/timer consists of two 8-bit SFRs: PCA0L and PCA0H. PCA0H is the high byte (MSB) of the 16-bit counter/timer and PCA0L is the low byte (LSB).   Reading PCA0L automatically latches the value of PCA0H into a “snapshot” register; the following PCA0H read accesses this “snapshot” register. Reading the PCA0L Register first guarantees an accurate reading of the entire 16-bit PCA0 counter. Reading PCA0H or PCA0L does not disturb the counter operation. The CPS2–CPS0 bits in the PCA0MD register select the timebase for the counter/timer as shown in Table 26.1.
+When the counter/timer overflows from 0xFFFF to 0x0000, the Counter Overflow Flag (CF) in PCA0MD is set to logic 1 and an interrupt request is generated if CF interrupts are enabled. Setting the ECF bit in PCA0MD to logic 1 enables the CF flag to generate an interrupt request. The CF bit is not automatically cleared by hardware when the CPU vectors to the interrupt service routine, and must be cleared by software. Clearing the CIDL bit in the PCA0MD register allows the PCA to continue normal operation while the CPU is in Idle mode.
+
+Table 26.1. PCA Timebase Input Options
+CPS2	CPS1	CPS0	Timebase
+0	0	0	System clock divided by 12
+0	0	1	System clock divided by 4
+0	1	0	Timer 0 overflow
+0	1	1	High-to-low transitions on ECI (max rate = system clock divided by 4)
+1	0	0	System clock
+1	0	1	External oscillator source divided by 8*
+1	1	0	Reserved
+1	1	1	Reserved
+*Note:	 External oscillator source divided by 8 is synchronized with the system clock.			
+
+
+Figure 26.2. PCA Counter/Timer Block Diagram
+26.2.	PCA0 Interrupt Sources
+Figure 26.3 shows a diagram of the PCA interrupt tree. There are eight independent event flags that can be used to generate a PCA0 interrupt. They are: the main PCA counter overflow flag (CF), which is set upon a 16-bit overflow of the PCA0 counter, an intermediate overflow flag (COVF), which can be set on an overflow from the 8th, 9th, 10th, or 11th bit of the PCA0 counter, and the individual flags for each PCA channel (CCF0, CCF1, CCF2, CCF3, CCF4, and CCF5), which are set according to the operation mode of that module. These event flags are always set when the trigger condition occurs. Each of these flags can be individually selected to generate a PCA0 interrupt, using the corresponding interrupt enable flag (ECF for CF, ECOV for COVF, and ECCFn for each CCFn). PCA0 interrupts must be globally enabled before any individual interrupt sources are recognized by the processor. PCA0 interrupts are globally enabled by setting the EA bit and the EPCA0 bit to logic 1.
+
+Figure 26.3. PCA Interrupt Block Diagram
+26.3.	Capture/Compare Modules
+Each module can be configured to operate independently in one of six operation modes: edge-triggered capture, software timer, high speed output, frequency output, 8 to 11-bit pulse width modulator, or 16-bit pulse width modulator. Each module has Special Function Registers (SFRs) associated with it in the CIP-51 system controller. These registers are used to exchange data with a module and configure the module's mode of operation. Table 26.2 summarizes the bit settings in the PCA0CPMn and PCA0PWM registers used to select the PCA capture/compare module’s operating mode. Note that all modules set to use 8, 9, 10, or 11-bit PWM mode must use the same cycle length (8-11 bits). Setting the ECCFn bit in a PCA0CPMn register enables the module's CCFn interrupt.
+
+Table 26.2. PCA0CPM and PCA0PWM Bit Settings for PCA Capture/Compare Modules
+Operational Mode	PCA0CPMn								PCA0PWM				
+Bit Number	7	6	5	4	3	2	1	0	7	6	5	4–2	1–0
+Capture triggered by positive edge on CEXn	X	X	1	0	0	0	0	A	0	X	B	XXX	XX
+Capture triggered by negative edge on CEXn	X	X	0	1	0	0	0	A	0	X	B	XXX	XX
+Capture triggered by any transition on CEXn	X	X	1	1	0	0	0	A	0	X	B	XXX	XX
+Software Timer	X	C	0	0	1	0	0	A	0	X	B	XXX	XX
+High Speed Output	X	C	0	0	1	1	0	A	0	X	B	XXX	XX
+Frequency Output	X	C	0	0	0	1	1	A	0	X	B	XXX	XX
+8-Bit Pulse Width Modulator (Note 7)	0	C	0	0	E	0	1	A	0	X	B	XXX	00
+9-Bit Pulse Width Modulator (Note 7)	0	C	0	0	E	0	1	A	D	X	B	XXX	01
+10-Bit Pulse Width Modulator (Note 7)	0	C	0	0	E	0	1	A	D	X	B	XXX	10
+11-Bit Pulse Width Modulator (Note 7)	0	C	0	0	E	0	1	A	D	X	B	XXX	11
+16-Bit Pulse Width Modulator	1	C	0	0	E	0	1	A	0	X	B	XXX	XX
+Notes:
+1.	X = Don’t Care (no functional difference for individual module if 1 or 0).
+2. 	A = Enable interrupts for this module (PCA interrupt triggered on CCFn set to 1).
+3. 	B = Enable 8th, 9th, 10th or 11th bit overflow interrupt (Depends on setting of CLSEL[1:0]).
+4. 	C = When set to 0, the digital comparator is off. For high speed and frequency output modes, the associated pin will not toggle. In any of the PWM modes, this generates a 0% duty cycle (output = 0).
+5. 	D = Selects whether the Capture/Compare register (0) or the Auto-Reload register (1) for the associated channel is accessed via addresses PCA0CPHn and PCA0CPLn.
+6. 	E = When set, a match event will cause the CCFn flag for the associated channel to be set.
+7. 	All modules set to 8, 9, 10 or 11-bit PWM mode use the same cycle length setting. 													
+
+26.3.1.	Edge-triggered Capture Mode
+In this mode, a valid transition on the CEXn pin causes the PCA to capture the value of the PCA counter/timer and load it into the corresponding module's 16-bit capture/compare register (PCA0CPLn and PCA0CPHn). The CAPPn and CAPNn bits in the PCA0CPMn register are used to select the type of transition that triggers the capture: low-to-high transition (positive edge), high-to-low transition (negative edge), or either transition (positive or negative edge). When a capture occurs, the Capture/Compare Flag (CCFn) in PCA0CN is set to logic 1. An interrupt request is generated if the CCFn interrupt for that module is enabled. The CCFn bit is not automatically cleared by hardware when the CPU vectors to the interrupt service routine, and must be cleared by software. If both CAPPn and CAPNn bits are set to logic 1, then the state of the Port pin associated with CEXn can be read directly to determine whether a rising-edge or falling-edge caused the capture.
+
+Figure 26.4. PCA Capture Mode Diagram
+Note:	The CEXn input signal must remain high or low for at least 2 system clock cycles to be recognized by the hardware.
+26.3.2.	Software Timer (Compare) Mode
+In Software Timer mode, the PCA counter/timer value is compared to the module's 16-bit capture/compare register (PCA0CPHn and PCA0CPLn). When a match occurs, the Capture/Compare Flag (CCFn) in PCA0CN is set to logic 1. An interrupt request is generated if the CCFn interrupt for that module is enabled. The CCFn bit is not automatically cleared by hardware when the CPU vectors to the interrupt service routine, and must be cleared by software. Setting the ECOMn and MATn bits in the PCA0CPMn register enables Software Timer mode.
+Important Note About Capture/Compare Registers: When writing a 16-bit value to the PCA0 Capture/Compare registers, the low byte should always be written first. Writing to PCA0CPLn clears the ECOMn bit to 0; writing to PCA0CPHn sets ECOMn to 1.
+
+Figure 26.5. PCA Software Timer Mode Diagram
+26.3.3.	High-Speed Output Mode
+In High-Speed Output mode, a module’s associated CEXn pin is toggled each time a match occurs between the PCA Counter and the module's 16-bit capture/compare register (PCA0CPHn and PCA0CPLn). When a match occurs, the Capture/Compare Flag (CCFn) in PCA0CN is set to logic 1. An interrupt request is generated if the CCFn interrupt for that module is enabled. The CCFn bit is not automatically cleared by hardware when the CPU vectors to the interrupt service routine, and must be cleared by software. Setting the TOGn, MATn, and ECOMn bits in the PCA0CPMn register enables the High-Speed Output mode. If ECOMn is cleared, the associated pin will retain its state, and not toggle on the next match event.
+Important Note About Capture/Compare Registers: When writing a 16-bit value to the PCA0 Capture/Compare registers, the low byte should always be written first. Writing to PCA0CPLn clears the ECOMn bit to 0; writing to PCA0CPHn sets ECOMn to 1.
+
+Figure 26.6. PCA High-Speed Output Mode Diagram
+26.3.4.	Frequency Output Mode
+Frequency Output Mode produces a programmable-frequency square wave on the module’s associated CEXn pin. The capture/compare module high byte holds the number of PCA clocks to count before the output is toggled. The frequency of the square wave is then defined by Equation 26.1.
+
+Equation 26.1. Square Wave Frequency Output
+Where FPCA is the frequency of the clock selected by the CPS2–0 bits in the PCA mode register, PCA0MD. The lower byte of the capture/compare module is compared to the PCA counter low byte; on a match, CEXn is toggled and the offset held in the high byte is added to the matched value in PCA0CPLn. Frequency Output Mode is enabled by setting the ECOMn, TOGn, and PWMn bits in the PCA0CPMn register. The MATn bit should normally be set to 0 in this mode. If the MATn bit is set to 1, the CCFn flag for the channel will be set when the 16-bit PCA0 counter and the 16-bit capture/compare register for the channel are equal.
+
+Figure 26.7. PCA Frequency Output Mode
+26.3.5.	  8-Bit, 9-Bit, 10-Bit and 11-Bit Pulse Width Modulator Modes
+Each module can be used independently to generate a pulse width modulated (PWM) output on its associated CEXn pin. The frequency of the output is dependent on the timebase for the PCA counter/timer, and the setting of the PWM cycle length (8, 9, 10 or 11-bits). For backwards-compatibility with the 8-bit PWM mode available on other devices, the 8-bit PWM mode operates slightly different than 9, 10 and 11-bit PWM modes. It is important to note that all channels configured for 8/9/10/11-bit PWM mode will use the same cycle length. It is not possible to configure one channel for 8-bit PWM mode and another for 11-bit mode (for example). However, other PCA channels can be configured to Pin Capture, High-Speed Output, Software Timer, Frequency Output, or 16-bit PWM mode independently.
+26.3.5.1.	  8-Bit Pulse Width Modulator Mode
+The duty cycle of the PWM output signal in 8-bit PWM mode is varied using the module's PCA0CPLn capture/compare register. When the value in the low byte of the PCA counter/timer (PCA0L) is equal to the value in PCA0CPLn, the output on the CEXn pin will be set. When the count value in PCA0L overflows, the CEXn output will be reset (see Figure 26.8). Also, when the counter/timer low byte (PCA0L) overflows from 0xFF to 0x00, PCA0CPLn is reloaded automatically with the value stored in the module’s capture/compare high byte (PCA0CPHn) without software intervention. Setting the ECOMn and PWMn bits in the PCA0CPMn register, and setting the CLSEL bits in register PCA0PWM to 00b enables 8-Bit Pulse Width Modulator mode. If the MATn bit is set to 1, the CCFn flag for the module will be set each time an 8-bit comparator match (rising edge) occurs. The COVF flag in PCA0PWM can be used to detect the overflow (falling edge), which will occur every 256 PCA clock cycles. The duty cycle for 8-Bit PWM Mode is given in Equation 26.2.
+Important Note About Capture/Compare Registers: When writing a 16-bit value to the PCA0 Capture/Compare registers, the low byte should always be written first. Writing to PCA0CPLn clears the ECOMn bit to 0; writing to PCA0CPHn sets ECOMn to 1.
+
+Equation 26.2. 8-Bit PWM Duty Cycle
+Using Equation 26.2, the largest duty cycle is 100% (PCA0CPHn = 0), and the smallest duty cycle is 0.39% (PCA0CPHn = 0xFF). A 0% duty cycle may be generated by clearing the ECOMn bit to 0.
+
+Figure 26.8. PCA 8-Bit PWM Mode Diagram
+26.3.5.2.	  9/10/11-bit Pulse Width Modulator Mode
+The duty cycle of the PWM output signal in 9/10/11-bit PWM mode should be varied by writing to an “Auto-Reload” Register, which is dual-mapped into the PCA0CPHn and PCA0CPLn register locations. The data written to define the duty cycle should be right-justified in the registers. The auto-reload registers are accessed (read or written) when the bit ARSEL in PCA0PWM is set to 1. The capture/compare registers are accessed when ARSEL is set to 0.
+When the least-significant N bits of the PCA0 counter match the value in the associated module’s capture/compare register (PCA0CPn), the output on CEXn is asserted high. When the counter overflows from the Nth bit, CEXn is asserted low (see Figure 26.9). Upon an overflow from the Nth bit, the COVF flag is set, and the value stored in the module’s auto-reload register is loaded into the capture/compare register. The value of N is determined by the CLSEL bits in register PCA0PWM.
+The 9, 10 or 11-bit PWM mode is selected by setting the ECOMn and PWMn bits in the PCA0CPMn register, and setting the CLSEL bits in register PCA0PWM to the desired cycle length (other than 8-bits). If the MATn bit is set to 1, the CCFn flag for the module will be set each time a comparator match (rising edge) occurs. The COVF flag in PCA0PWM can be used to detect the overflow (falling edge), which will occur every 512 (9-bit), 1024 (10-bit) or 2048 (11-bit) PCA clock cycles. The duty cycle for 9/10/11-Bit PWM Mode is given in Equation 26.2, where N is the number of bits in the PWM cycle.
+Important Note About PCA0CPHn and PCA0CPLn Registers: When writing a 16-bit value to the PCA0CPn registers, the low byte should always be written first. Writing to PCA0CPLn clears the ECOMn bit to 0; writing to PCA0CPHn sets ECOMn to 1.
+
+Equation 26.3. 9, 10, and 11-Bit PWM Duty Cycle
+A 0% duty cycle may be generated by clearing the ECOMn bit to 0.
+
+Figure 26.9. PCA 9, 10 and 11-Bit PWM Mode Diagram
+26.3.6.	  16-Bit Pulse Width Modulator Mode
+A PCA module may also be operated in 16-Bit PWM mode. 16-bit PWM mode is independent of the other (8/9/10/11-bit) PWM modes. In this mode, the 16-bit capture/compare module defines the number of PCA clocks for the low time of the PWM signal. When the PCA counter matches the module contents, the output on CEXn is asserted high; when the 16-bit counter overflows, CEXn is asserted low. To output a varying duty cycle, new value writes should be synchronized with PCA CCFn match interrupts. 16-Bit PWM Mode is enabled by setting the ECOMn, PWMn, and PWM16n bits in the PCA0CPMn register. For a varying duty cycle, match interrupts should be enabled (ECCFn = 1 AND MATn = 1) to help synchronize the capture/compare register writes. If the MATn bit is set to 1, the CCFn flag for the module will be set each time a 16-bit comparator match (rising edge) occurs. The CF flag in PCA0CN can be used to detect the overflow (falling edge). The duty cycle for 16-Bit PWM Mode is given by Equation 26.4. 
+Important Note About Capture/Compare Registers: When writing a 16-bit value to the PCA0 Capture/Compare registers, the low byte should always be written first. Writing to PCA0CPLn clears the ECOMn bit to 0; writing to PCA0CPHn sets ECOMn to 1.
+
+Equation 26.4. 16-Bit PWM Duty Cycle
+Using Equation 26.4, the largest duty cycle is 100% (PCA0CPn = 0), and the smallest duty cycle is 0.0015% (PCA0CPn = 0xFFFF). A 0% duty cycle may be generated by clearing the ECOMn bit to 0.
+
+Figure 26.10. PCA 16-Bit PWM Mode
+26.4.	Watchdog Timer Mode
+A programmable watchdog timer (WDT) function is available through the PCA Module 5. The WDT is used to generate a reset if the time between writes to the WDT update register (PCA0CPH5) exceed a specified limit. The WDT can be configured and enabled/disabled as needed by software.
+With the WDTE bit set in the PCA0MD register, Module 5 operates as a watchdog timer (WDT). The Module 5 high byte is compared to the PCA counter high byte; the Module 5 low byte holds the offset to be used when WDT updates are performed. The Watchdog Timer is enabled on reset. Writes to some PCA registers are restricted while the Watchdog Timer is enabled. The WDT will generate a reset shortly after code begins execution. To avoid this reset, the WDT should be explicitly disabled (and optionally re-configured and re-enabled if it is used in the system).
+26.4.1.	Watchdog Timer Operation
+While the WDT is enabled:
+•	PCA counter is forced on.
+•	Writes to PCA0L and PCA0H are not allowed.
+•	PCA clock source bits (CPS2–CPS0) are frozen.
+•	PCA Idle control bit (CIDL) is frozen.
+•	Module 5 is forced into software timer mode.
+•	Writes to the Module 5 mode register (PCA0CPM5) are disabled.
+
+While the WDT is enabled, writes to the CR bit will not change the PCA counter state; the counter will run until the WDT is disabled. The PCA counter run control bit (CR) will read zero if the WDT is enabled but user software has not enabled the PCA counter. If a match occurs between PCA0CPH5 and PCA0H while the WDT is enabled, a reset will be generated. To prevent a WDT reset, the WDT may be updated with a write of any value to PCA0CPH5. Upon a PCA0CPH5 write, PCA0H plus the offset held in PCA0CPL5 is loaded into PCA0CPH5 (See Figure 26.11).
+
+Figure 26.11. PCA Module 5 with Watchdog Timer Enabled
+Note that the 8-bit offset held in PCA0CPH5 is compared to the upper byte of the 16-bit PCA counter. This offset value is the number of PCA0L overflows before a reset. Up to 256 PCA clocks may pass before the first PCA0L overflow occurs, depending on the value of the PCA0L when the update is performed. The total offset is then given (in PCA clocks) by Equation 26.5, where PCA0L is the value of the PCA0L register at the time of the update.
+
+Equation 26.5. Watchdog Timer Offset in PCA Clocks
+The WDT reset is generated when PCA0L overflows while there is a match between PCA0CPH5 and PCA0H. Software may force a WDT reset by writing a 1 to the CCF5 flag (PCA0CN.5) while the WDT is enabled.
+26.4.2.	Watchdog Timer Usage
+To configure the WDT, perform the following tasks:
+
+•	Disable the WDT by writing a 0 to the WDTE bit.
+•	Select the desired PCA clock source (with the CPS2–CPS0 bits).
+•	Load PCA0CPL5 with the desired WDT update offset value.
+•	Configure the PCA Idle mode (set CIDL if the WDT should be suspended while the CPU is in Idle mode).
+•	Enable the WDT by setting the WDTE bit to 1.
+•	Reset the WDT timer by writing to PCA0CPH5.
+
+The PCA clock source and idle mode select cannot be changed while the WDT is enabled. The watchdog timer is enabled by setting the WDTE or WDLCK bits in the PCA0MD register. When WDLCK is set, the WDT cannot be disabled until the next system reset. If WDLCK is not set, the WDT is disabled by clearing the WDTE bit. 
+The WDT is enabled following any reset. The PCA0 counter clock defaults to the system clock divided by 12, PCA0L defaults to 0x00, and PCA0CPL5 defaults to 0x00. Using Equation 26.5, this results in a WDT timeout interval of 256 PCA clock cycles, or 3072 system clock cycles. Table 26.3 lists some example timeout intervals for typical system clocks.
+Table 26.3. Watchdog Timer Timeout Intervals1
+System Clock (Hz)	PCA0CPL5	Timeout Interval (ms)
+24,500,000			255		32.1
+24,500,000			128		16.2
+24,500,000			32		4.1
+3,062,5002		255		257
+3,062,5002		128		129.5
+3,062,5002		32		33.1
+32,000			255		24576
+32,000			128		12384
+32,000			32		3168
+Notes:
+1.	Assumes SYSCLK/12 as the PCA clock source, and a PCA0L value of 0x00 at the update time.
+2. 	Internal SYSCLK reset frequency = Internal Oscillator divided by 8.		
+
+26.5.	Register Descriptions for PCA0
+Following are detailed descriptions of the special function registers related to the operation of the PCA.
+
+SFR Definition 26.1. PCA0CN: PCA Control
+Bit	7	6	5	4	3	2	1	0
+Name	CF	CR	CCF5	CCF4	CCF3	CCF2	CCF1	CCF0
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xD8; Bit-Addressable
+Bit	Name	Function		
+7	CF	PCA Counter/Timer Overflow Flag.
+Set by hardware when the PCA Counter/Timer overflows from 0xFFFF to 0x0000. When the Counter/Timer Overflow (CF) interrupt is enabled, setting this bit causes the CPU to vector to the PCA interrupt service routine. This bit is not automatically cleared by hardware and must be cleared by software.		
+6	CR	PCA Counter/Timer Run Control. 
+This bit enables/disables the PCA Counter/Timer. 
+0: PCA Counter/Timer disabled.
+1: PCA Counter/Timer enabled.		
+5:0	CCF[5:0]	PCA Module n Capture/Compare Flag. 
+These bits are set by hardware when a match or capture occurs in the associated PCA Module n. When the CCFn interrupt is enabled, setting this bit causes the CPU to vector to the PCA interrupt service routine. This bit is not automatically cleared by hardware and must be cleared by software.		
+
+
+SFR Definition 26.2. PCA0MD: PCA Mode
+Bit	7	6	5	4	3	2	1	0
+Name	CIDL	WDTE	WDLCK		CPS2	CPS1	CPS0	ECF
+Type	R/W	R/W	R/W	R	R/W	R/W	R/W	R/W
+Reset	0	1	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xD9
+Bit	Name	Function		
+7	CIDL	PCA Counter/Timer Idle Control.
+Specifies PCA behavior when CPU is in Idle Mode.
+0: PCA continues to function normally while the system controller is in Idle Mode.
+1: PCA operation is suspended while the system controller is in Idle Mode.		
+6	WDTE	Watchdog Timer Enable.
+If this bit is set, PCA Module 2 is used as the watchdog timer.
+0: Watchdog Timer disabled.
+1: PCA Module 2 enabled as Watchdog Timer.		
+5	WDLCK	Watchdog Timer Lock.
+This bit locks/unlocks the Watchdog Timer Enable. When WDLCK is set, the Watchdog Timer may not be disabled until the next system reset.
+0: Watchdog Timer Enable unlocked.
+1: Watchdog Timer Enable locked.		
+4	Unused	Unused.
+Read = 0b, Write = don't care.		
+3:1	CPS[2:0]	PCA Counter/Timer Pulse Select. 
+These bits select the timebase source for the PCA counter
+000: System clock divided by 12
+001: System clock divided by 4
+010: Timer 0 overflow
+011: High-to-low transitions on ECI (max rate = system clock divided by 4)
+100: System clock
+101: External clock divided by 8 (synchronized with the system clock)
+110: Reserved
+111: Reserved		
+0	ECF	PCA Counter/Timer Overflow Interrupt Enable. 
+This bit sets the masking of the PCA Counter/Timer Overflow (CF) interrupt. 
+0: Disable the CF interrupt.
+1: Enable a PCA Counter/Timer Overflow interrupt request when CF (PCA0CN.7) is set.		
+Note:	When the WDTE bit is set to 1, the other bits in the PCA0MD register cannot be modified. To change the contents of the PCA0MD register, the Watchdog Timer must first be disabled.				
+
+
+SFR Definition 26.3. PCA0PWM: PCA PWM Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	ARSEL	ECOV	COVF				CLSEL[1:0]	
+Type	R/W	R/W	R/W	R	R	R	R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xDF
+Bit	Name	Function		
+7	ARSEL	Auto-Reload Register Select.
+This bit selects whether to read and write the normal PCA capture/compare registers (PCA0CPn), or the Auto-Reload registers at the same SFR addresses. This function is used to define the reload value for 9, 10, and 11-bit PWM modes. In all other modes, the Auto-Reload registers have no function.
+0: Read/Write Capture/Compare Registers at PCA0CPHn and PCA0CPLn.
+1: Read/Write Auto-Reload Registers at PCA0CPHn and PCA0CPLn.		
+6	ECOV	Cycle Overflow Interrupt Enable.
+This bit sets the masking of the Cycle Overflow Flag (COVF) interrupt. 
+0: COVF will not generate PCA interrupts.
+1: A PCA interrupt will be generated when COVF is set.		
+5	COVF	Cycle Overflow Flag.
+This bit indicates an overflow of the 8th, 9th, 10th, or 11th bit of the main PCA counter (PCA0). The specific bit used for this flag depends on the setting of the Cycle Length Select bits. The bit can be set by hardware or software, but must be cleared by software.
+0: No overflow has occurred since the last time this bit was cleared.
+1: An overflow has occurred since the last time this bit was cleared.		
+4:2	Unused	Unused.
+Read = 000b; Write = don’t care.		
+1:0	CLSEL[1:0]	Cycle Length Select.
+When 16-bit PWM mode is not selected, these bits select the length of the PWM cycle, between 8, 9, 10, or 11 bits. This affects all channels configured for PWM which are not using 16-bit PWM mode. These bits are ignored for individual channels configured to16-bit PWM mode.
+00: 8 bits.
+01: 9 bits.
+10: 10 bits.
+11: 11 bits.		
+
+
+SFR Definition 26.4. PCA0CPMn: PCA Capture/Compare Mode
+Bit	7	6	5	4	3	2	1	0
+Name	PWM16n	ECOMn	CAPPn	CAPNn	MATn	TOGn	PWMn	ECCFn
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Address, Page: PCA0CPM0 = 0xDA, 0x0; PCA0CPM1 = 0xDB, 0x0; PCA0CPM2 = 0xDC, 0x0
+ PCA0CPM3 = 0xDD, 0x0; PCA0CPM4 = 0xDE, 0x0; PCA0CPM5 = 0xCE, 0x0
+Bit	Name	Function		
+7	PWM16n	16-bit Pulse Width Modulation Enable.
+This bit enables 16-bit mode when Pulse Width Modulation mode is enabled.
+0: 8 to 11-bit PWM selected.
+1: 16-bit PWM selected.		
+6	ECOMn	Comparator Function Enable.
+This bit enables the comparator function for PCA module n when set to 1.		
+5	CAPPn	Capture Positive Function Enable. 
+This bit enables the positive edge capture for PCA module n when set to 1. 		
+4	CAPNn	Capture Negative Function Enable. 
+This bit enables the negative edge capture for PCA module n when set to 1. 		
+3	MATn	Match Function Enable. 
+This bit enables the match function for PCA module n when set to 1. When enabled, matches of the PCA counter with a module's capture/compare register cause the CCFn bit in PCA0MD register to be set to logic 1. 		
+2	TOGn	Toggle Function Enable. 
+This bit enables the toggle function for PCA module n when set to 1. When enabled, matches of the PCA counter with a module's capture/compare register cause the logic level on the CEXn pin to toggle. If the PWMn bit is also set to logic 1, the module operates in Frequency Output Mode.		
+1	PWMn	Pulse Width Modulation Mode Enable.
+This bit enables the PWM function for PCA module n when set to 1. When enabled, a pulse width modulated signal is output on the CEXn pin. 8 to 11-bit PWM is used if PWM16n is cleared; 16-bit mode is used if PWM16n is set to logic 1. If the TOGn bit is also set, the module operates in Frequency Output Mode.		
+0	ECCFn	Capture/Compare Flag Interrupt Enable. 
+This bit sets the masking of the Capture/Compare Flag (CCFn) interrupt. 
+0: Disable CCFn interrupts.
+1: Enable a Capture/Compare Flag interrupt request when CCFn is set.		
+Note:	When the WDTE bit is set to 1, the PCA0CPM5 register cannot be modified, and module 5 acts as the watchdog timer. To change the contents of the PCA0CPM5 register or the function of module 5, the Watchdog Timer must be disabled.				
+
+
+SFR Definition 26.5. PCA0L: PCA Counter/Timer Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	PCA0[7:0]							
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xF9
+Bit	Name	Function		
+7:0	PCA0[7:0]	PCA Counter/Timer Low Byte. 
+The PCA0L register holds the low byte (LSB) of the 16-bit PCA Counter/Timer.		
+Note:	When the WDTE bit is set to 1, the PCA0L register cannot be modified by software. To change the contents of the PCA0L register, the Watchdog Timer must first be disabled.				
+
+
+SFR Definition 26.6. PCA0H: PCA Counter/Timer High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	PCA0[15:8]							
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xFA
+Bit	Name	Function		
+7:0	PCA0[15:8]	PCA Counter/Timer High Byte. 
+The PCA0H register holds the high byte (MSB) of the 16-bit PCA Counter/Timer. Reads of this register will read the contents of a “snapshot” register, whose contents are updated only when the contents of PCA0L are read (see Section 26.1).		
+Note:	When the WDTE bit is set to 1, the PCA0H register cannot be modified by software. To change the contents of the PCA0H register, the Watchdog Timer must first be disabled.				
+
+
+SFR Definition 26.7. PCA0CPLn: PCA Capture Module Low Byte
+Bit	7	6	5	4	3	2	1	0
+Name	PCA0CPn[7:0]							
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Addresses: PCA0CPL0 = 0xFB, PCA0CPL1 = 0xE9, PCA0CPL2 = 0xEB,
+ PCA0CPL3 = 0xED, PCA0CPL4 = 0xFD, PCA0CPL5 = 0xD2
+SFR Pages: 	PCA0CPL0 = 0x0, PCA0CPL1 = 0x0, PCA0CPL2 = 0x0,
+PCA0CPL3 = 0x0, PCA0CPL4 = 0x0, PCA0CPL5 = 0x0
+Bit	Name	Function		
+7:0	PCA0CPn[7:0]	PCA Capture Module Low Byte.
+The PCA0CPLn register holds the low byte (LSB) of the 16-bit capture module n.
+This register address also allows access to the low byte of the corresponding PCA channel’s auto-reload value for 9, 10, or 11-bit PWM mode. The ARSEL bit in register PCA0PWM controls which register is accessed.		
+Note:	A write to this register will clear the module’s ECOMn bit to a 0.				
+
+
+SFR Definition 26.8. PCA0CPHn: PCA Capture Module High Byte
+Bit	7	6	5	4	3	2	1	0
+Name	PCA0CPn[15:8]							
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Addresses: PCA0CPH0 = 0xFC, PCA0CPH1 = 0xEA, PCA0CPH2 = 0xEC,
+ PCA0CPH3 = 0xEE, PCA0CPH4 = 0xFE, PCA0CPH5 = 0xD3
+SFR Pages: 	PCA0CPH0 = 0x0, PCA0CPH1 = 0x0, PCA0CPH2 = 0x0,
+ PCA0CPH3 = 0x0, PCA0CPH4 = 0x0, PCA0CPH5 = 0x0 
+Bit	Name	Function		
+7:0	PCA0CPn[15:8]	PCA Capture Module High Byte.
+The PCA0CPHn register holds the high byte (MSB) of the 16-bit capture module n.
+This register address also allows access to the high byte of the corresponding PCA channel’s auto-reload value for 9, 10, or 11-bit PWM mode. The ARSEL bit in register PCA0PWM controls which register is accessed.		
+Note:	A write to this register will set the module’s ECOMn bit to a 1.				
+
+

@@ -1,0 +1,170 @@
+﻿The information in this document is believed to be accurate in all respects at the time of publication but is subject to change without notice. Silicon Laboratories assumes no responsibility for errors and omissions, and disclaims responsibility for any consequences resulting from the use of information included herein. Additionally, Silicon Laboratories assumes no responsibility for the functioning of undescribed features or parameters. Silicon Laboratories reserves the right to make changes without further notice. Silicon Laboratories makes no warranty, representation or guarantee regarding the suitability of its products for any particular purpose, nor does Silicon Laboratories assume any liability arising out of the application or use of any product or circuit, and specifically disclaims any and all liability, including without limitation consequential or incidental damages. Silicon Laboratories products are not designed, intended, or authorized for use in applications intended to support or sustain life, or for any other application in which the failure of the Silicon Laboratories product could create a situation where personal injury or death may occur. Should Buyer purchase or use Silicon Laboratories products for any such unintended or unauthorized application, Buyer shall indemnify and hold Silicon Laboratories harmless against all claims and damages. 
+27.	C2 Interface
+C8051F93x-C8051F92x devices include an on-chip Silicon Labs 2-Wire (C2) debug interface to allow Flash programming and in-system debugging with the production part installed in the end application. The C2 interface uses a clock signal (C2CK) and a bi-directional C2 data signal (C2D) to transfer information between the device and a host system. See the C2 Interface Specification for details on the C2 protocol.
+27.1.	C2 Interface Registers
+The following describes the C2 registers necessary to perform Flash programming through the C2 interface. All C2 registers are accessed through the C2 interface as described in the C2 Interface Specification.
+
+SFR Definition 27.1. C2ADD: C2 Address
+Bit	7	6	5	4	3	2	1	0
+Name	C2ADD[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+
+Bit	Name	Function		
+7:0	C2ADD[7:0]	C2 Address.
+The C2ADD register is accessed via the C2 interface to select the target Data register for C2 Data Read and Data Write commands.		
+		Address	Description	
+		0x00	Selects the Device ID register for Data Read instructions	
+		0x01	Selects the Revision ID register for Data Read instructions	
+		0x02	Selects the C2 Flash Programming Control register for Data Read/Write instructions	
+		0xB4	Selects the C2 Flash Programming Data register for Data Read/Write instructions	
+
+
+SFR Definition 27.2. DEVICEID: C2 Device ID
+Bit	7	6	5	4	3	2	1	0
+Name	DEVICEID[7:0]							
+Type	R/W							
+Reset	0	0	0	1	0	1	0	0
+
+C2 Address: 0x00
+Bit	Name	Function		
+7:0	DEVICEID[7:0]	Device ID.
+This read-only register returns the 8-bit device ID: 0x16 (C8051F93x-C8051F92x).		
+
+
+SFR Definition 27.3. REVID: C2 Revision ID
+Bit	7	6	5	4	3	2	1	0
+Name	REVID[7:0]							
+Type	R/W							
+Reset	Varies	Varies	Varies	Varies	Varies	Varies	Varies	Varies
+
+C2 Address: 0x01
+Bit	Name	Function		
+7:0	REVID[7:0]	Revision ID.
+This read-only register returns the 8-bit revision ID. For example: 0x00 = Revision A.		
+
+
+SFR Definition 27.4. FPCTL: C2 Flash Programming Control
+Bit	7	6	5	4	3	2	1	0
+Name	FPCTL[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+C2 Address: 0x02
+Bit	Name	Function		
+7:0	FPCTL[7:0]	Flash Programming Control Register.
+This register is used to enable Flash programming via the C2 interface. To enable C2 Flash programming, the following codes must be written in order: 0x02, 0x01. Note that once C2 Flash programming is enabled, a system reset must be issued to resume normal operation.		
+
+
+SFR Definition 27.5. FPDAT: C2 Flash Programming Data
+Bit	7	6	5	4	3	2	1	0
+Name	FPDAT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+C2 Address: 0xB4
+Bit	Name	Function		
+7:0	FPDAT[7:0]	C2 Flash Programming Data Register.
+This register is used to pass Flash commands, addresses, and data during C2 Flash accesses. Valid commands are listed below.		
+		Code	Command	
+		0x06	Flash Block Read	
+		0x07	Flash Block Write	
+		0x08	Flash Page Erase	
+		0x03	Device Erase	
+
+
+27.2.	C2 Pin Sharing
+The C2 protocol allows the C2 pins to be shared with user functions so that in-system debugging and Flash programming may be performed. This is possible because C2 communication is typically performed when the device is in the halt state, where all on-chip peripherals and user software are stalled. In this halted state, the C2 interface can safely ‘borrow’ the C2CK (RST) and C2D pins. In most applications, external resistors are required to isolate C2 interface traffic from the user application. A typical isolation configuration is shown in Figure 27.1.
+
+Figure 27.1. Typical C2 Pin Sharing
+The configuration in Figure 27.1 assumes the following:
+	1.	The user input (b) cannot change state while the target device is halted.
+	2.	The RST pin on the target device is used as an input only.
+
+Additional resistors may be necessary depending on the specific application.
+Document Change List
+Revision 1.0 to Revision 1.1
+n	On front page, clarified that the SmaRTClock oscillator has an internal self-oscillate mode.
+n	Updated block diagrams in system overview.
+n	Updated mechanical package drawings for all three packages.
+n	Added a new Absolute Maximum Rating specification for maximum total current through all Port pins.
+n	Added additional data points for Sleep Mode current.
+n	ADC0 Maximum SAR Clock frequency and Minimum Settling Time specifications updated. Also update the turn-on time specification for the internal high speed VREF.
+n	Updated Port I/O, Reset, IREF0, Comparator, and dc-dc converter specification tables.
+n	Expanded note in ADC Data Register indicating that ADC0H:ADC0L should not be written when the SYNC bit is set to 1.
+n	Updated Figure 5.8 to correct order of operations in the temperature sensor transfer function equation.
+n	Updated text which referred to the address as A[15:0]. The 12-bit address should be A[11:0].
+n	Added a note to the FLSCL register description describing the need for a dummy 3-byte MOV instruction following any operation that clears the BYPASS bit. Also updated the FLWR register description indicating that writes to FLWR have no effect on system operation.
+n	In the Flash chapter, added a note which says that 8-bit MOVX instructions cannot be used to erase or write to Flash memory at addresses higher than 0x00FF.
+n	Updated chapter text and figures in the power management chapter. 
+n	Added a note to the CRC0CN register description describing the need for a dummy 3-byte MOV instruction following any operation that initiates an automatic CRC operation.
+n	Updated dc-dc converter diagram to properly show parasitic inductance.
+n	Removed the requirement that the output voltage has to be at least 0.2 V higher than the input voltage.
+n	Added several clarifications to the dc-dc converter chapter text.
+n	Updated the CLKSEL register description. 
+n	In Table 19.1, changed the high end of the crystal frequency range to 25 MHz.
+n	Globally changed “smaRTClock” to “SmaRTClock”.
+n	Updated the RTC0PIN register description.
+n	Updated recommend instruction timing for accessing indirect SmaRTClock registers. Polling ‘BUSY’ to wait for data transfer is no longer required as long as the recommended instruction timing is followed.
+n	Updated recommended crystal characteristics / operating conditions.
+n	Added information on how to perform SmaRTClock oscillation robustness test.
+n	Updated Port I/O Cell Diagram.
+n	Corrected description of XBR0, bit 0. Also made minor updates to Port I/O chapter text.
+n	Emphasized that port match is not available on P1.6 and P1.7 for ‘F931/’F921 devices.
+n	Added a note to refer to the C8051F930 Errata when using the SMBus Hardware Acknowledge Feature.
+n	Updated text which refers to Timer 3, but references bits in the Timer 2 control register.
+n	Updated text in PCA0 chapter related to the watchdog timer. The watchdog timer uses PCA module 5.
+n	Re-formatted the PCA0CPMn register description to fit on a single page.
+Revision 1.1 to Revision 1.2
+n	Removed references to AN338.
+Revision 1.2 to Revision 1.3
+n	Added labels to indicate center pad as “GND (optional)” to pinout diagrams in Figure 3.1 and Figure 3.2.
+n	Added package marking diagrams as Figure 3.4, Figure 3.5, and Figure 3.6 to help identify the silicon revision.
+n	Clarified conditions that apply to ‘VBAT Ramp Time for Power On’ for one-cell mode vs two-cell mode in Table 4.4, “Reset Electrical Characteristics,” on page 59.
+n	Updated Section “5.2.3. Burst Mode” on page 71 and Figure 5.3 to show difference in behavior between internal convert start signals and external CNVSTR signal.
+n	Added note about the need to ground the ADC mux before switching to the temperature sensor in Section “5.6. Temperature Sensor” on page 86 and in SFR Definition 5.12 “ADC0MX”.
+n	Updated Figure 7.4, “CPn Multiplexer Block Diagram,” to show CPnOUT pull-up voltage (inverted)and to correct the locations of VDD/DC+, VBAT, Digital Supply, and GND multiplexer inputs.
+n	Updated Table 8.1 to correct number of clock cycles for ‘CJNE A, direct, rel’.
+n	Corrected VDD ramp time reference in item 2 of Section “13.5.1. VDD Maintenance and the VDD Monitor” on page 153.
+n	Updated CPT0WK bit description in SFR Definition 14.1, “PMU0CF”.
+n	Added Section “15.2. 32-bit CRC Algorithm” on page 169 to illustrate the 32-bit CRC algorithm.
+n	Updated Section “21.1.3. Interfacing Port I/O to 5 V and 3.3 V Logic” on page 218 to include notes about sizing external pull-up resistors and other related information when using multi-voltage interfaces.
+n	Corrected clock sources associated with T3XCLK settings in Section “25.3.2. 8-bit Timers with Auto-Reload” on page 300, Figure 25.7, Figure 25.8, and Figure 25.9 to match the description in SFR Definition 25.13.
+n	Removed ‘SmaRTClock divided by 8’ from list of possible clock sources in text description in Section “26. Programmable Counter Array” on page 305.
+n	Replaced incorrect PCA channel references from PCA0CPH2 to PCA0CPH5 in Section “26.4. Watchdog Timer Mode” on page 316 and Figure 26.11.
+Contact Information
+Silicon Laboratories Inc.
+400 West Cesar Chavez
+Austin, TX 78701
+Please visit the Silicon Labs Technical Support web page:
+https://www.silabs.com/support/pages/contacttechnicalsupport.aspx
+and register to submit a technical support request.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Silicon Laboratories and Silicon Labs are trademarks of Silicon Laboratories Inc.
+Other products or brandnames mentioned herein are trademarks or registered trademarks of their respective holders

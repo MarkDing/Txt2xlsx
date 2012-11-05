@@ -1,0 +1,463 @@
+﻿21.	Port Input/Output
+Digital and analog resources are available through 24 I/O pins (C8051F930/20) or 16 I/O pins (C8051F931/21). Port pins are organized as three byte-wide ports. Port pins P0.0–P2.6 can be defined as digital or analog I/O. Digital I/O pins can be assigned to one of the internal digital resources or used as general purpose I/O (GPIO). Analog I/O pins are used by the internal analog resources. P2.7 can be used as GPIO and is shared with the C2 Interface Data signal (C2D). See Section “27. C2 Interface” on page 324 for more details.
+The designer has complete control over which digital and analog functions are assigned to individual port pins, limited only by the number of physical I/O pins. This resource assignment flexibility is achieved through the use of a Priority Crossbar Decoder. See Section 21.3 for more information on the Crossbar.
+All Port I/Os are 5 V tolerant when used as digital inputs or open-drain outputs. For Port I/Os configured as push-pull outputs, current is sourced from the VDD/DC+ supply. Port I/Os used for analog functions can operate up to the VDD/DC+ supply voltage. See Section 21.1 for more information on Port I/O operating modes and the electrical specifications chapter for detailed electrical specifications. 
+
+Figure 21.1. Port I/O Functional Block Diagram
+21.1.	Port I/O Modes of Operation
+Port pins P0.0–P2.6 use the Port I/O cell shown in Figure 21.2. Each Port I/O cell can be configured by software for analog I/O or digital I/O using the PnMDIN registers. On reset, all Port I/O cells default to a digital high impedance state with weak pull-ups enabled. 
+21.1.1.	Port Pins Configured for Analog I/O
+Any pins to be used as Comparator or ADC input, external oscillator input/output, or AGND, VREF, or Current Reference output should be configured for analog I/O (PnMDIN.n = 0). When a pin is configured for analog I/O, its weak pullup and digital receiver are disabled. In most cases, software should also disable the digital output drivers. Port pins configured for analog I/O will always read back a value of 0 regardless of the actual voltage on the pin.
+Configuring pins as analog I/O saves power and isolates the Port pin from digital interference. Port pins configured as digital inputs may still be used by analog peripherals; however, this practice is not recommended and may result in measurement errors.
+21.1.2.	Port Pins Configured For Digital I/O
+Any pins to be used by digital peripherals (UART, SPI, SMBus, etc.), external digital event capture functions, or as GPIO should be configured as digital I/O (PnMDIN.n = 1). For digital I/O pins, one of two output modes (push-pull or open-drain) must be selected using the PnMDOUT registers. 
+Push-pull outputs (PnMDOUT.n = 1) drive the Port pad to the VDD/DC+ or GND supply rails based on the output logic value of the Port pin. Open-drain outputs have the high side driver disabled; therefore, they only drive the Port pad to GND when the output logic value is 0 and become high impedance inputs (both high and low drivers turned off) when the output logic value is 1. 
+When a digital I/O cell is placed in the high impedance state, a weak pull-up transistor pulls the Port pad to the VDD/DC+ supply voltage to ensure the digital input is at a defined logic state. Weak pull-ups are disabled when the I/O cell is driven to GND to minimize power consumption and may be globally disabled by setting WEAKPUD to 1. The user must ensure that digital I/O are always internally or externally pulled or driven to a valid logic state. Port pins configured for digital I/O always read back the logic state of the Port pad, regardless of the output logic value of the Port pin.
+
+Figure 21.2. Port I/O Cell Block Diagram
+21.1.3.	Interfacing Port I/O to 5 V and 3.3 V Logic
+All Port I/O configured for digital, open-drain operation are capable of interfacing to digital logic operating at a supply voltage higher than 4.5 V and less than 5.25 V. When the supply voltage is in the range of 1.8 to 2.2 V, the I/O may also interface to digital logic operating between 3.0 to 3.6 V if the input signal frequency is less than 12.5 MHz or less than 25 MHz if the signal rise time (10% to 90%) is less than 1.2 ns. When operating at a supply voltage above 2.2 V, the device should not interface to 3.3 V logic; however, interfacing to 5 V logic is permitted. An external pull-up resistor to the higher supply voltage is typically required for most systems. 
+Important Notes: 
+•	When interfacing to a signal that is between 4.5 and 5.25 V, the maximum clock frequency that may be input on a GPIO pin is 12.5 MHz. The exception to this rule is when routing an external CMOS clock to P0.3, in which case, a signal up to 25 MHz is valid as long as the rise time (10% to 90%) is shorter than 1.8 ns.
+•	When the supply voltage is less than 2.2 V and interfacing to a signal that is between 3.0 and 3.6 V, the maximum clock frequency that may be input on a GPIO pin is 3.125 MHz. The exception to this rule is when routing an external CMOS clock to P0.3, in which case, a signal up to 25 MHz is valued as long as the rise time (10% to 90%) is shorter than 1.2 ns.
+•	In a multi-voltage interface, the external pull-up resistor should be sized to allow a current of at least 150 μA to flow into the Port pin when the supply voltage is between (VDD/DC+ plus 0.4 V) and (VDD/DC+ plus 1.0 V). Once the Port pad voltage increases beyond this range, the current flowing into the Port pin is minimal. 
+These guidelines only apply to multi-voltage interfaces. Port I/Os may always interface to digital logic operating at the same supply voltage. 
+21.1.4.	Increasing Port I/O Drive Strength
+Port I/O output drivers support a high and low drive strength; the default is low drive strength. The drive strength of a Port I/O can be configured using the PnDRV registers. See Section “4. Electrical Characteristics” on page 45 for the difference in output drive strength between the two modes.
+
+21.2.	Assigning Port I/O Pins to Analog and Digital Functions
+Port I/O pins P0.0–P2.6 can be assigned to various analog, digital, and external interrupt functions. The Port pins assuaged to analog functions should be configured for analog I/O and Port pins assuaged to digital or external interrupt functions should be configured for digital I/O. 
+21.2.1.	Assigning Port I/O Pins to Analog Functions
+Table 21.1 shows all available analog functions that need Port I/O assignments. Port pins selected for these analog functions should have their digital drivers disabled (PnMDOUT.n = 0 and Port Latch = 1) and their corresponding bit in PnSKIP set to 1. This reserves the pin for use by the analog function and does not allow it to be claimed by the Crossbar. Table 21.1 shows the potential mapping of Port I/O to each analog function. 
+
+Table 21.1. Port I/O Assignment for Analog Functions
+Analog Function	Potentially Assignable Port Pins	SFR(s) used for Assignment
+ADC Input 	P0.0–P2.6	ADC0MX, PnSKIP
+Comparator0 Input	P0.0–P2.6	CPT0MX, PnSKIP
+Comparator1 Input	P0.0–P2.6	CPT1MX, PnSKIP
+Voltage Reference (VREF0)	P0.0	REF0CN, PnSKIP
+Analog Ground Reference (AGND)	P0.1	REF0CN, PnSKIP
+Current Reference (IREF0)	P0.7	IREF0CN, PnSKIP
+External Oscillator Input (XTAL1)	P0.2	OSCXCN, PnSKIP
+External Oscillator Output (XTAL2)	P0.3	OSCXCN, PnSKIP
+
+21.2.2.	Assigning Port I/O Pins to Digital Functions
+Any Port pins not assigned to analog functions may be assigned to digital functions or used as GPIO. Most digital functions rely on the Crossbar for pin assignment; however, some digital functions bypass the Crossbar in a manner similar to the analog functions listed above. Port pins used by these digital functions and any Port pins selected for use as GPIO should have their corresponding bit in PnSKIP set to 1. Table 21.2 shows all available digital functions and the potential mapping of Port I/O to each digital function.
+
+Table 21.2. Port I/O Assignment for Digital Functions
+Digital Function	Potentially Assignable Port Pins	SFR(s) used for Assignment
+UART0, SPI1, SPI0, SMBus, CP0 and CP1 Outputs, System Clock Output, PCA0, Timer0 and Timer1 External Inputs.	Any Port pin available for assignment by the Crossbar. This includes P0.0–P2.6 pins which have their PnSKIP bit set to 0. 
+Note:	The Crossbar will always assign UART0 and SPI1 pins to fixed locations. 	XBR0, XBR1, XBR2
+Any pin used for GPIO	P0.0–P2.6	P0SKIP, P1SKIP, P2SKIP
+External Memory Interface	P1.0–P2.6	P1SKIP, P2SKIP
+EMI0CF
+
+21.2.3.	Assigning Port I/O Pins to External Digital Event Capture Functions
+External digital event capture functions can be used to trigger an interrupt or wake the device from a low power mode when a transition occurs on a digital I/O pin. The digital event capture functions do not require dedicated pins and will function on both GPIO pins (PnSKIP = 1) and pins in use by the Crossbar (PnSKIP = 0). External digital even capture functions cannot be used on pins configured for analog I/O. Table 21.3 shows all available external digital event capture functions.
+
+Table 21.3. Port I/O Assignment for External Digital Event Capture Functions
+Digital Function	Potentially Assignable Port Pins	SFR(s) used for Assignment
+External Interrupt 0	P0.0–P0.7	IT01CF
+External Interrupt 1	P0.0–P0.7	IT01CF
+Port Match	P0.0–P1.7
+Note:	On C8051F931/21 devices Port Match is not available on P1.6 or P1.7.	P0MASK, P0MAT
+P1MASK, P1MAT
+
+21.3.	Priority Crossbar Decoder
+The Priority Crossbar Decoder assigns a Port I/O pin to each software selected digital function using the fixed peripheral priority order shown in Figure 21.3. The registers XBR0, XBR1, and XBR2 defined in SFR Definition 21.1, SFR Definition 21.2, and SFR Definition 21.3 are used to select digital functions in the Crossbar. The Port pins available for assignment by the Crossbar include all Port pins (P0.0–P2.6) which have their corresponding bit in PnSKIP set to 0.
+From Figure 21.3, the highest priority peripheral is UART0. If UART0 is selected in the Crossbar (using the XBRn registers), then P0.4 and P0.5 will be assigned to UART0. The next highest priority peripheral is SPI1. If SPI1 is selected in the Crossbar, then P1.0–P1.2 will be assigned to SPI1. P1.3 will be assigned if SPI1 is configured for 4-wire mode. The user should ensure that the pins to be assigned by the Crossbar have their PnSKIP bits set to 0.
+For all remaining digital functions selected in the Crossbar, starting at the top of Figure 21.3 going down, the least-significant unskipped, unassigned Port pin(s) are assigned to that function. If a Port pin is already assigned (e.g., UART0 or SPI1 pins), or if its PnSKIP bit is set to 1, then the Crossbar will skip over the pin and find next available unskipped, unassigned Port pin. All Port pins used for analog functions, GPIO, or dedicated digital functions such as the EMIF should have their PnSKIP bit set to 1. 
+Figure 21.3 shows the Crossbar Decoder priority with no Port pins skipped (P0SKIP, P1SKIP, P2SKIP = 0x00); Figure 21.4 shows the Crossbar Decoder priority with the External Oscillator pins (XTAL1 and XTAL2) skipped (P0SKIP = 0x0C).
+Important Notes: 
+•	The Crossbar must be enabled (XBARE = 1) before any Port pin is used as a digital output. Port output drivers are disabled while the Crossbar is disabled. 
+•	When SMBus is selected in the Crossbar, the pins associated with SDA and SCL will automatically be forced into open-drain output mode regardless of the PnMDOUT setting. 
+•	SPI0 can be operated in either 3-wire or 4-wire modes, depending on the state of the NSSMD1-NSSMD0 bits in register SPI0CN. The NSS signal is only routed to a Port pin when 4-wire mode is selected. When SPI0 is selected in the Crossbar, the SPI0 mode (3-wire or 4-wire) will affect the pinout of all digital functions lower in priority than SPI0.
+•	For given XBRn, PnSKIP, and SPInCN register settings, one can determine the I/O pin-out of the device using Figure 21.3 and Figure 21.4. 
+
+Figure 21.3. Crossbar Priority Decoder with No Pins Skipped
+
+Figure 21.4. Crossbar Priority Decoder with Crystal Pins Skipped
+
+SFR Definition 21.1. XBR0: Port I/O Crossbar Register 0
+Bit	7	6	5	4	3	2	1	0
+Name	CP1AE	CP1E	CP0AE	CP0E	SYSCKE	SMB0E	SPI0E	URT0E
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xE1
+Bit	Name	Function		
+7	CP1AE	Comparator1 Asynchronous Output Enable. 
+0: Asynchronous CP1 output unavailable at Port pin.
+1: Asynchronous CP1 output routed to Port pin.		
+6	CP1E	Comparator1 Output Enable. 
+0: CP1 output unavailable at Port pin.
+1: CP1 output routed to Port pin.		
+5	CP0AE	Comparator0 Asynchronous Output Enable. 
+0: Asynchronous CP0 output unavailable at Port pin.
+1: Asynchronous CP0 output routed to Port pin.		
+4	CP0E	Comparator0 Output Enable. 
+0: CP1 output unavailable at Port pin.
+1: CP1 output routed to Port pin.		
+3	SYSCKE	SYSCLK Output Enable. 
+0: SYSCLK output unavailable at Port pin.
+1: SYSCLK output routed to Port pin.		
+2	SMB0E	SMBus I/O Enable. 
+0: SMBus I/O unavailable at Port pin.
+1: SDA and SCL routed to Port pins.		
+1	SPI0E	SPI0 I/O Enable
+0: SPI0 I/O unavailable at Port pin.
+1: SCK, MISO, and MOSI (for SPI0) routed to Port pins.
+    NSS (for SPI0) routed to Port pin only if SPI0 is configured to 4-wire mode.		
+0	URT0E	UART0 Output Enable. 
+0: UART I/O unavailable at Port pin.
+1: TX0 and RX0 routed to Port pins P0.4 and P0.5.		
+Note:	SPI0 can be assigned either 3 or 4 Port I/O pins.				
+
+
+SFR Definition 21.2. XBR1: Port I/O Crossbar Register 1
+Bit	7	6	5	4	3	2	1	0
+Name		SPI1E	T1E	T0E	ECIE	PCA0ME[2:0]		
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xE2
+Bit	Name	Function		
+7	Unused	Unused.
+Read = 0b; Write = Don’t Care.		
+6	SPI1E	SPI1 I/O Enable.
+0: SPI0 I/O unavailable at Port pin.
+1: SCK (for SPI1) routed to P1.0.
+    MISO (for SPI1) routed to P1.1.
+    MOSI (for SPI1) routed to P1.2.
+    NSS (for SPI1) routed to P1.3 only if SPI1 is configured to 4-wire mode.		
+5	T1E	Timer1 Input Enable. 
+0: T1 input unavailable at Port pin.
+1: T1 input routed to Port pin.		
+4	T0E	Timer0 Input Enable. 
+0: T0 input unavailable at Port pin.
+1: T0 input routed to Port pin.		
+3	ECIE	PCA0 External Counter Input (ECI) Enable.
+0: PCA0 external counter input unavailable at Port pin.
+1: PCA0 external counter input routed to Port pin.		
+2:0	PCA0ME	PCA0 Module I/O Enable.
+000: All PCA0 I/O unavailable at Port pin.
+001: CEX0 routed to Port pin.
+010: CEX0, CEX1 routed to Port pins.
+011: CEX0, CEX1, CEX2 routed to Port pins.
+100: CEX0, CEX1, CEX2 CEX3 routed to Port pins.
+101: CEX0, CEX1, CEX2, CEX3, CEX4 routed to Port pins.
+110: CEX0, CEX1, CEX2, CEX3, CEX4, CEX5 routed to Port pins.
+111: Reserved.		
+Note:	SPI1 can be assigned either 3 or 4 Port I/O pins.				
+
+
+SFR Definition 21.3. XBR2: Port I/O Crossbar Register 2
+Bit	7	6	5	4	3	2	1	0
+Name	WEAKPUD	XBARE						
+Type	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xE3
+Bit	Name	Function		
+7	WEAKPUD	Port I/O Weak Pullup Disable
+0: Weak Pullups enabled (except for Port I/O pins configured for analog mode).		
+6	XBARE	Crossbar Enable
+0: Crossbar disabled.
+1: Crossbar enabled.		
+5:0	Unused	Unused. 
+Read = 000000b; Write = Don’t Care.		
+Note:	The Crossbar must be enabled (XBARE = 1) to use any Port pin as a digital output.				
+
+
+21.4.	Port Match
+Port match functionality allows system events to be triggered by a logic value change on P0 or P1. A software controlled value stored in the PnMAT registers specifies the expected or normal logic values of P0 and P1. A Port mismatch event occurs if the logic levels of the Port’s input pins no longer match the software controlled value. This allows Software to be notified if a certain change or pattern occurs on P0 or P1 input pins regardless of the XBRn settings. Note: On C8051F931/21 devices, Port Match is not available on P1.6 or P1.7.
+The PnMASK registers can be used to individually select which P0 and P1 pins should be compared against the PnMAT registers. A Port mismatch event is generated if (P0 & P0MASK) does not equal (PnMAT & P0MASK) or if (P1 & P1MASK) does not equal (PnMAT & P1MASK). 
+A Port mismatch event may be used to generate an interrupt or wake the device from a low power mode. See Section “12. Interrupt Handler” on page 136 and Section “14. Power Management” on page 159 for more details on interrupt and wake-up sources.
+
+SFR Definition 21.4. P0MASK: Port0 Mask Register
+Bit	7	6	5	4	3	2	1	0
+Name	P0MASK[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page= 0x0; SFR Address = 0xC7
+Bit	Name	Function		
+7:0	P0MASK[7:0]	Port0 Mask Value.
+Selects the P0 pins to be compared with the corresponding bits in P0MAT.
+0: P0.n pin pad logic value is ignored and cannot cause a Port Mismatch event.
+1: P0.n pin pad logic value is compared to P0MAT.n.		
+
+
+SFR Definition 21.5. P0MAT: Port0 Match Register
+Bit	7	6	5	4	3	2	1	0
+Name	P0MAT[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page= 0x0; SFR Address = 0xD7
+Bit	Name	Function		
+7:0	P0MAT[7:0]	Port 0 Match Value.
+Match comparison value used on Port 0 for bits in P0MASK which are set to 1.
+0: P0.n pin logic value is compared with logic LOW.
+1: P0.n pin logic value is compared with logic HIGH.		
+
+
+SFR Definition 21.6. P1MASK: Port1 Mask Register
+Bit	7	6	5	4	3	2	1	0
+Name	P1MASK[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page= 0x0; SFR Address = 0xBF 
+Bit	Name	Function		
+7:0	P1MASK[7:0]	Port 1 Mask Value.
+Selects P1 pins to be compared to the corresponding bits in P1MAT.
+0: P1.n pin logic value is ignored and cannot cause a Port Mismatch event.
+1: P1.n pin logic value is compared to P1MAT.n.		
+Note:	On C8051F931/21 devices, port match is not available on P1.6 or P1.7. The corresponding P1MASK bits must be set to 0b.				
+
+
+SFR Definition 21.7. P1MAT: Port1 Match Register
+Bit	7	6	5	4	3	2	1	0
+Name	P1MAT[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0xCF
+Bit	Name	Function		
+7:0	P1MAT[7:0]	Port 1 Match Value.
+Match comparison value used on Port 1 for bits in P1MASK which are set to 1.
+0: P1.n pin logic value is compared with logic LOW.
+1: P1.n pin logic value is compared with logic HIGH.		
+Note:	On C8051F931/21 devices, port match is not available on P1.6 or P1.7.				
+
+
+21.5.	Special Function Registers for Accessing and Configuring Port I/O
+All Port I/O are accessed through corresponding special function registers (SFRs) that are both byte addressable and bit addressable. When writing to a Port, the value written to the SFR is latched to maintain the output data value at each pin. When reading, the logic levels of the Port's input pins are returned regardless of the XBRn settings (i.e., even when the pin is assigned to another signal by the Crossbar, the Port register can always read its corresponding Port I/O pin). The exception to this is the execution of the read-modify-write instructions that target a Port Latch register as the destination. The read-modify-write instructions when operating on a Port SFR are the following: ANL, ORL, XRL, JBC, CPL, INC, DEC, DJNZ and MOV, CLR or SETB, when the destination is an individual bit in a Port SFR. For these instructions, the value of the latch register (not the pin) is read, modified, and written back to the SFR.
+Each Port has a corresponding PnSKIP register which allows its individual Port pins to be assigned to digital functions or skipped by the Crossbar. All Port pins used for analog functions, GPIO, or dedicated digital functions such as the EMIF should have their PnSKIP bit set to 1.
+The Port input mode of the I/O pins is defined using the Port Input Mode registers (PnMDIN). Each Port cell can be configured for analog or digital I/O. This selection is required even for the digital resources selected in the XBRn registers, and is not automatic. The only exception to this is P2.7, which can only be used for digital I/O.
+The output driver characteristics of the I/O pins are defined using the Port Output Mode registers (PnMDOUT). Each Port Output driver can be configured as either open drain or push-pull. This selection is required even for the digital resources selected in the XBRn registers, and is not automatic. The only exception to this is the SMBus (SDA, SCL) pins, which are configured as open-drain regardless of the PnMDOUT settings. 
+The drive strength of the output drivers are controlled by the Port Drive Strength (PnDRV) registers. The default is low drive strength. See Section “4. Electrical Characteristics” on page 45 for the difference in output drive strength between the two modes.
+
+SFR Definition 21.8. P0: Port0
+Bit	7	6	5	4	3	2	1	0
+Name	P0[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = All Pages; SFR Address = 0x80; Bit-Addressable
+Bit	Name	Description	Write	Read
+7:0	P0[7:0]	Port 0 Data. 
+Sets the Port latch logic value or reads the Port pin logic state in Port cells configured for digital I/O.	0: Set output latch to logic LOW.
+1: Set output latch to logic HIGH.	0: P0.n Port pin is logic LOW.
+1: P0.n Port pin is logic HIGH.
+
+
+SFR Definition 21.9. P0SKIP: Port0 Skip 
+Bit	7	6	5	4	3	2	1	0
+Name	P0SKIP[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page= 0x0; SFR Address = 0xD4
+Bit	Name	Function		
+7:0	P0SKIP[7:0]	Port 0 Crossbar Skip Enable Bits.
+These bits select Port 0 pins to be skipped by the Crossbar Decoder. Port pins used for analog, special functions or GPIO should be skipped by the Crossbar.
+0: Corresponding P0.n pin is not skipped by the Crossbar.
+1: Corresponding P0.n pin is skipped by the Crossbar.		
+
+
+SFR Definition 21.10. P0MDIN: Port0 Input Mode
+Bit	7	6	5	4	3	2	1	0
+Name	P0MDIN[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page= 0x0; SFR Address = 0xF1
+Bit	Name	Function		
+7:0	P0MDIN[7:0]	Analog Configuration Bits for P0.7–P0.0 (respectively).
+Port pins configured for analog mode have their weak pullup, and digital receiver disabled. The digital driver is not explicitly disabled.
+0: Corresponding P0.n pin is configured for analog mode.
+1: Corresponding P0.n pin is not configured for analog mode.		
+
+
+SFR Definition 21.11. P0MDOUT: Port0 Output Mode
+Bit	7	6	5	4	3	2	1	0
+Name	P0MDOUT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xA4
+Bit	Name	Function		
+7:0	P0MDOUT[7:0]	Output Configuration Bits for P0.7–P0.0 (respectively).
+These bits control the digital driver even when the corresponding bit in register P0MDIN is logic 0.
+0: Corresponding P0.n Output is open-drain.
+1: Corresponding P0.n Output is push-pull.		
+
+
+SFR Definition 21.12. P0DRV: Port0 Drive Strength
+Bit	7	6	5	4	3	2	1	0
+Name	P0DRV[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0xA4
+Bit	Name	Function		
+7:0	P0DRV[7:0]	Drive Strength Configuration Bits for P0.7–P0.0 (respectively).
+Configures digital I/O Port cells to high or low output drive strength. 
+0: Corresponding P0.n Output has low output drive strength.
+1: Corresponding P0.n Output has high output drive strength.		
+
+
+SFR Definition 21.13. P1: Port1
+Bit	7	6	5	4	3	2	1	0
+Name	P1[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = All Pages; SFR Address = 0x90; Bit-Addressable
+Bit	Name	Description	Write	Read
+7:0	P1[7:0]	Port 1 Data. 
+Sets the Port latch logic value or reads the Port pin logic state in Port cells configured for digital I/O.	0: Set output latch to logic LOW.
+1: Set output latch to logic HIGH.	0: P1.n Port pin is logic LOW.
+1: P1.n Port pin is logic HIGH.
+Note:	Pin P1.7 is only available in 32-pin devices.				
+
+
+SFR Definition 21.14. P1SKIP: Port1 Skip 
+Bit	7	6	5	4	3	2	1	0
+Name	P1SKIP[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xD5
+Bit	Name	Function		
+7:0	P1SKIP[7:0]	Port 1 Crossbar Skip Enable Bits.
+These bits select Port 1 pins to be skipped by the Crossbar Decoder. Port pins used for analog, special functions or GPIO should be skipped by the Crossbar.
+0: Corresponding P1.n pin is not skipped by the Crossbar.
+1: Corresponding P1.n pin is skipped by the Crossbar.		
+Note:	Pin P1.7 is only available in 32-pin devices.				
+
+
+SFR Definition 21.15. P1MDIN: Port1 Input Mode
+Bit	7	6	5	4	3	2	1	0
+Name	P1MDIN[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0xF2
+Bit	Name	Function		
+7:0	P1MDIN[7:0]	Analog Configuration Bits for P1.7–P1.0 (respectively).
+Port pins configured for analog mode have their weak pullup and digital receiver disabled. The digital driver is not explicitly disabled.
+0: Corresponding P1.n pin is configured for analog mode.
+1: Corresponding P1.n pin is not configured for analog mode.		
+Note:	Pin P1.7 is only available in 32-pin devices.				
+
+
+SFR Definition 21.16. P1MDOUT: Port1 Output Mode
+Bit	7	6	5	4	3	2	1	0
+Name	P1MDOUT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xA5
+Bit	Name	Function		
+7:0	P1MDOUT[7:0]	Output Configuration Bits for P1.7–P1.0 (respectively).
+These bits control the digital driver even when the corresponding bit in register P1MDIN is logic 0.
+0: Corresponding P1.n Output is open-drain.
+1: Corresponding P1.n Output is push-pull.		
+Note:	Pin P1.7 is only available in 32-pin devices.				
+
+
+
+SFR Definition 21.17. P1DRV: Port1 Drive Strength
+Bit	7	6	5	4	3	2	1	0
+Name	P1DRV[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0xF; SFR Address = 0xA5
+Bit	Name	Function		
+7:0	P1DRV[7:0]	Drive Strength Configuration Bits for P1.7–P1.0 (respectively).
+Configures digital I/O Port cells to high or low output drive strength. 
+0: Corresponding P1.n Output has low output drive strength.
+1: Corresponding P1.n Output has high output drive strength.		
+Note:	Pin P1.7 is only available in 32-pin devices.				
+
+
+SFR Definition 21.18. P2: Port2
+Bit	7	6	5	4	3	2	1	0
+Name	P2[7:0]							
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = All Pages; SFR Address = 0xA0; Bit-Addressable
+Bit	Name	Description	Read	Write
+7:0	P2[7:0]	Port 2 Data. 
+Sets the Port latch logic value or reads the Port pin logic state in Port cells configured for digital I/O.	0: Set output latch to logic LOW.
+1: Set output latch to logic HIGH.	0: P2.n Port pin is logic LOW.
+1: P2.n Port pin is logic HIGH.
+Note:	Pins P2.0-P2.6 are only available in 32-pin devices.				
+
+
+SFR Definition 21.19. P2SKIP: Port2 Skip 
+Bit	7	6	5	4	3	2	1	0
+Name	P2SKIP[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xD6
+Bit	Name	Description	Read	Write
+7:0	P2SKIP[7:0]	Port 1 Crossbar Skip Enable Bits.
+These bits select Port 2 pins to be skipped by the Crossbar Decoder. Port pins used for analog, special functions or GPIO should be skipped by the Crossbar.
+0: Corresponding P2.n pin is not skipped by the Crossbar.
+1: Corresponding P2.n pin is skipped by the Crossbar.		
+Note:	Pins P2.0-P2.6 are only available in 32-pin devices.				
+
+
+SFR Definition 21.20. P2MDIN: Port2 Input Mode
+Bit	7	6	5	4	3	2	1	0
+Name	Reserved	P2MDIN[6:0]						
+Type	R/W							
+Reset	1	1	1	1	1	1	1	1
+
+SFR Page = 0x0; SFR Address = 0xF3
+Bit	Name	Function		
+7		Reserved. Read = 1b; Must Write 1b.		
+6:0	P2MDIN[3:0]	Analog Configuration Bits for P2.6–P2.0 (respectively).
+Port pins configured for analog mode have their weak pullup and digital receiver disabled. The digital driver is not explicitly disabled.
+0: Corresponding P2.n pin is configured for analog mode.
+1: Corresponding P2.n pin is not configured for analog mode.		
+Note:	Pins P2.0-P2.6 are only available in 32-pin devices.				
+
+
+SFR Definition 21.21. P2MDOUT: Port2 Output Mode
+Bit	7	6	5	4	3	2	1	0
+Name	P2MDOUT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xA6
+Bit	Name	Function		
+7:0	P2MDOUT[7:0]	Output Configuration Bits for P2.7–P2.0 (respectively).
+These bits control the digital driver even when the corresponding bit in register P2MDIN is logic 0.
+0: Corresponding P2.n Output is open-drain.
+1: Corresponding P2.n Output is push-pull.		
+Note:	Pins P2.0-P2.6 are only available in 32-pin devices.				
+
+
+SFR Definition 21.22. P2DRV: Port2 Drive Strength
+Bit	7	6	5	4	3	2	1	0
+Name	P2DRV[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0F; SFR Address = 0xA6
+Bit	Name	Function		
+7:0	P2DRV[7:0]	Drive Strength Configuration Bits for P2.7–P2.0 (respectively).
+Configures digital I/O Port cells to high or low output drive strength. 
+0: Corresponding P2.n Output has low output drive strength.
+1: Corresponding P2.n Output has high output drive strength.		
+Note:	Pins P2.0-P2.6 are only available in 32-pin devices.				
+
+

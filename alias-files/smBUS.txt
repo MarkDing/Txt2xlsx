@@ -1,0 +1,361 @@
+﻿22.	SMBus
+The SMBus I/O interface is a two-wire, bi-directional serial bus. The SMBus is compliant with the System Management Bus Specification, version 1.1, and compatible with the I2C serial bus. Reads and writes to the interface by the system controller are byte oriented with the SMBus interface autonomously controlling the serial transfer of the data. Data can be transferred at up to 1/20th of the system clock as a master or slave (this can be faster than allowed by the SMBus specification, depending on the system clock used). A method of extending the clock-low duration is available to accommodate devices with different speed capabilities on the same bus.
+The SMBus interface may operate as a master and/or slave, and may function on a bus with multiple masters. The SMBus provides control of SDA (serial data), SCL (serial clock) generation and synchronization, arbitration logic, and START/STOP control and generation. The SMBus peripheral can be fully driven by software (i.e., software accepts/rejects slave addresses, and generates ACKs), or hardware slave address recognition and automatic ACK generation can be enabled to minimize software overhead. A block diagram of the SMBus peripheral and the associated SFRs is shown in Figure 22.1.
+
+Figure 22.1. SMBus Block Diagram
+22.1.	Supporting Documents
+It is assumed the reader is familiar with or has access to the following supporting documents:
+	1.	The I2C-Bus and How to Use It (including specifications), Philips Semiconductor.
+	2.	The I2C-Bus Specification—Version 2.0, Philips Semiconductor.
+	3.	System Management Bus Specification—Version 1.1, SBS Implementers Forum.
+22.2.	SMBus Configuration
+Figure 22.2 shows a typical SMBus configuration. The SMBus specification allows any recessive voltage between 3.0 V and 5.0 V; different devices on the bus may operate at different voltage levels. The bi-directional SCL (serial clock) and SDA (serial data) lines must be connected to a positive power supply voltage through a pullup resistor or similar circuit. Every device connected to the bus must have an open-drain or open-collector output for both the SCL and SDA lines, so that both are pulled high (recessive state) when the bus is free. The maximum number of devices on the bus is limited only by the requirement that the rise and fall times on the bus not exceed 300 ns and 1000 ns, respectively.
+
+Figure 22.2. Typical SMBus Configuration
+22.3.	SMBus Operation
+Two types of data transfers are possible: data transfers from a master transmitter to an addressed slave receiver (WRITE), and data transfers from an addressed slave transmitter to a master receiver (READ). The master device initiates both types of data transfers and provides the serial clock pulses on SCL. The SMBus interface may operate as a master or a slave, and multiple master devices on the same bus are supported. If two or more masters attempt to initiate a data transfer simultaneously, an arbitration scheme is employed with a single master always winning the arbitration. Note that it is not necessary to specify one device as the Master in a system; any device who transmits a START and a slave address becomes the master for the duration of that transfer.
+A typical SMBus transaction consists of a START condition followed by an address byte (Bits7–1: 7-bit slave address; Bit0: R/W direction bit), one or more bytes of data, and a STOP condition. Bytes that are received (by a master or slave) are acknowledged (ACK) with a low SDA during a high SCL (see Figure 22.3). If the receiving device does not ACK, the transmitting device will read a NACK (not acknowledge), which is a high SDA during a high SCL.
+The direction bit (R/W) occupies the least-significant bit position of the address byte. The direction bit is set to logic 1 to indicate a "READ" operation and cleared to logic 0 to indicate a "WRITE" operation. 
+All transactions are initiated by a master, with one or more addressed slave devices as the target.   The master generates the START condition and then transmits the slave address and direction bit. If the transaction is a WRITE operation from the master to the slave, the master transmits the data a byte at a time waiting for an ACK from the slave at the end of each byte. For READ operations, the slave transmits the data waiting for an ACK from the master at the end of each byte. At the end of the data transfer, the master generates a STOP condition to terminate the transaction and free the bus. Figure 22.3 illustrates a typical SMBus transaction.
+
+Figure 22.3. SMBus Transaction
+22.3.1.	Transmitter Vs. Receiver
+On the SMBus communications interface, a device is the “transmitter” when it is sending an address or data byte to another device on the bus. A device is a “receiver” when an address or data byte is being sent to it from another device on the bus. The transmitter controls the SDA line during the address or data byte. After each byte of address or data information is sent by the transmitter, the receiver sends an ACK or NACK bit during the ACK phase of the transfer, during which time the receiver controls the SDA line.
+22.3.2.	Arbitration
+A master may start a transfer only if the bus is free. The bus is free after a STOP condition or after the SCL and SDA lines remain high for a specified time (see Section “22.3.5. SCL High (SMBus Free) Timeout” on page 241). In the event that two or more devices attempt to begin a transfer at the same time, an arbitration scheme is employed to force one master to give up the bus. The master devices continue transmitting until one attempts a HIGH while the other transmits a LOW. Since the bus is open-drain, the bus will be pulled LOW. The master attempting the HIGH will detect a LOW SDA and lose the arbitration. The winning master continues its transmission without interruption; the losing master becomes a slave and receives the rest of the transfer if addressed. This arbitration scheme is non-destructive: one device always wins, and no data is lost.
+22.3.3.	Clock Low Extension
+SMBus provides a clock synchronization mechanism, similar to I2C, which allows devices with different speed capabilities to coexist on the bus. A clock-low extension is used during a transfer in order to allow slower slave devices to communicate with faster masters. The slave may temporarily hold the SCL line LOW to extend the clock low period, effectively decreasing the serial clock frequency.
+22.3.4.	SCL Low Timeout
+If the SCL line is held low by a slave device on the bus, no further communication is possible. Furthermore, the master cannot force the SCL line high to correct the error condition. To solve this problem, the SMBus protocol specifies that devices participating in a transfer must detect any clock cycle held low longer than 25 ms as a “timeout” condition. Devices that have detected the timeout condition must reset the communication no later than 10 ms after detecting the timeout condition. 
+When the SMBTOE bit in SMB0CF is set, Timer 3 is used to detect SCL low timeouts. Timer 3 is forced to reload when SCL is high, and allowed to count when SCL is low. With Timer 3 enabled and configured to overflow after 25 ms (and SMBTOE set), the Timer 3 interrupt service routine can be used to reset (disable and re-enable) the SMBus in the event of an SCL low timeout.
+22.3.5.	SCL High (SMBus Free) Timeout
+The SMBus specification stipulates that if the SCL and SDA lines remain high for more that 50 µs, the bus is designated as free. When the SMBFTE bit in SMB0CF is set, the bus will be considered free if SCL and SDA remain high for more than 10 SMBus clock source periods (as defined by the timer configured for the SMBus clock source). If the SMBus is waiting to generate a Master START, the START will be generated following this timeout. A clock source is required for free timeout detection, even in a slave-only implementation.
+22.4.	Using the SMBus
+The SMBus can operate in both Master and Slave modes. The interface provides timing and shifting control for serial transfers; higher level protocol is determined by user software. The SMBus interface provides the following application-independent features:
+
+•	Byte-wise serial data transfers
+•	Clock signal generation on SCL (Master Mode only) and SDA data synchronization
+•	Timeout/bus error recognition, as defined by the SMB0CF configuration register
+•	START/STOP timing, detection, and generation
+•	Bus arbitration
+•	Interrupt generation
+•	Status information
+•	Optional hardware recognition of slave address and automatic acknowledgement of address/data
+
+SMBus interrupts are generated for each data byte or slave address that is transferred. When hardware acknowledgement is disabled, the point at which the interrupt is generated depends on whether the hardware is acting as a data transmitter or receiver. When a transmitter (i.e., sending address/data, receiving an ACK), this interrupt is generated after the ACK cycle so that software may read the received ACK value; when receiving data (i.e., receiving address/data, sending an ACK), this interrupt is generated before the ACK cycle so that software may define the outgoing ACK value. If hardware acknowledgement is enabled, these interrupts are always generated after the ACK cycle. See Section 22.5 for more details on transmission sequences.
+Interrupts are also generated to indicate the beginning of a transfer when a master (START generated), or the end of a transfer when a slave (STOP detected). Software should read the SMB0CN (SMBus Control register) to find the cause of the SMBus interrupt. The SMB0CN register is described in Section 22.4.2; Table 22.5 provides a quick SMB0CN decoding reference.
+22.4.1.	SMBus Configuration Register
+The SMBus Configuration register (SMB0CF) is used to enable the SMBus Master and/or Slave modes, select the SMBus clock source, and select the SMBus timing and timeout options. When the ENSMB bit is set, the SMBus is enabled for all master and slave events. Slave events may be disabled by setting the INH bit. With slave events inhibited, the SMBus interface will still monitor the SCL and SDA pins; however, the interface will NACK all received addresses and will not generate any slave interrupts. When the INH bit is set, all slave events will be inhibited following the next START (interrupts will continue for the duration of the current transfer).
+
+Table 22.1. SMBus Clock Source Selection
+SMBCS1	SMBCS0	SMBus Clock Source
+0	0	Timer 0 Overflow
+0	1	Timer 1 Overflow
+1	0	Timer 2 High Byte Overflow
+1	1	Timer 2 Low Byte Overflow
+
+The SMBCS1–0 bits select the SMBus clock source, which is used only when operating as a master or when the Free Timeout detection is enabled. When operating as a master, overflows from the selected source determine the absolute minimum SCL low and high times as defined in Equation 22.1. The selected clock source may be shared by other peripherals so long as the timer is left running at all times. For example, Timer 1 overflows may generate the SMBus and UART baud rates simultaneously. Timer configuration is covered in Section “25. Timers” on page 283.
+
+Equation 22.1. Minimum SCL High and Low Times
+The selected clock source should be configured to establish the minimum SCL High and Low times as per Equation 22.1. When the interface is operating as a master (and SCL is not driven or extended by any other devices on the bus), the typical SMBus bit rate is approximated by Equation 22.2.
+
+Equation 22.2. Typical SMBus Bit Rate
+Figure 22.4 shows the typical SCL generation described by Equation 22.2. Notice that THIGH is typically twice as large as TLOW. The actual SCL output may vary due to other devices on the bus (SCL may be extended low by slower slave devices, or driven low by contending master devices). The bit rate when operating as a master will never exceed the limits defined by equation Equation 22.1.
+
+Figure 22.4. Typical SMBus SCL Generation
+Setting the EXTHOLD bit extends the minimum setup and hold times for the SDA line. The minimum SDA setup time defines the absolute minimum time that SDA is stable before SCL transitions from low-to-high. The minimum SDA hold time defines the absolute minimum time that the current SDA value remains stable after SCL transitions from high-to-low. EXTHOLD should be set so that the minimum setup and hold times meet the SMBus Specification requirements of 250 ns and 300 ns, respectively. Table 22.2 shows the minimum setup and hold times for the two EXTHOLD settings. Setup and hold time extensions are typically necessary when SYSCLK is above 10 MHz.
+
+Table 22.2. Minimum SDA Setup and Hold Times
+EXTHOLD	Minimum SDA Setup Time	Minimum SDA Hold Time
+0	Tlow – 4 system clocks
+or
+1 system clock + s/w delay*	3 system clocks
+1	11 system clocks	12 system clocks
+*Note:	 Setup Time for ACK bit transmissions and the MSB of all data transfers. When using software acknowledgement, the s/w delay occurs between the time SMB0DAT or ACK is written and when SI is cleared. Note that if SI is cleared in the same write that defines the outgoing ACK value, s/w delay is zero.		
+
+With the SMBTOE bit set, Timer 3 should be configured to overflow after 25 ms in order to detect SCL low timeouts (see Section “22.3.4. SCL Low Timeout” on page 241). The SMBus interface will force Timer 3 to reload while SCL is high, and allow Timer 3 to count when SCL is low. The Timer 3 interrupt service routine should be used to reset SMBus communication by disabling and re-enabling the SMBus.
+SMBus Free Timeout detection can be enabled by setting the SMBFTE bit. When this bit is set, the bus will be considered free if SDA and SCL remain high for more than 10 SMBus clock source periods (see Figure 22.4).
+
+
+SFR Definition 22.1. SMB0CF: SMBus Clock/Configuration
+Bit	7	6	5	4	3	2	1	0
+Name	ENSMB	INH	BUSY	EXTHOLD	SMBTOE	SMBFTE	SMBCS[1:0]	
+Type	R/W	R/W	R	R/W	R/W	R/W	R/W	
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC1
+Bit	Name	Function		
+7	ENSMB	SMBus Enable.
+This bit enables the SMBus interface when set to 1. When enabled, the interface constantly monitors the SDA and SCL pins.		
+6	INH	SMBus Slave Inhibit.
+When this bit is set to logic 1, the SMBus does not generate an interrupt when slave events occur. This effectively removes the SMBus slave from the bus. Master Mode interrupts are not affected.		
+5	BUSY	SMBus Busy Indicator.
+This bit is set to logic 1 by hardware when a transfer is in progress. It is cleared to logic 0 when a STOP or free-timeout is sensed.		
+4	EXTHOLD	SMBus Setup and Hold Time Extension Enable.
+This bit controls the SDA setup and hold times according to Table 22.2.
+0: SDA Extended Setup and Hold Times disabled.
+1: SDA Extended Setup and Hold Times enabled.		
+3	SMBTOE	SMBus SCL Timeout Detection Enable.
+This bit enables SCL low timeout detection. If set to logic 1, the SMBus forces Timer 3 to reload while SCL is high and allows Timer 3 to count when SCL goes low. If Timer 3 is configured to Split Mode, only the High Byte of the timer is held in reload while SCL is high. Timer 3 should be programmed to generate interrupts at 25 ms, and the Timer 3 interrupt service routine should reset SMBus communication.		
+2	SMBFTE	SMBus Free Timeout Detection Enable.
+When this bit is set to logic 1, the bus will be considered free if SCL and SDA remain high for more than 10 SMBus clock source periods.		
+1:0	SMBCS[1:0]	SMBus Clock Source Selection.
+These two bits select the SMBus clock source, which is used to generate the SMBus bit rate. The selected device should be configured according to Equation 22.1.
+00: Timer 0 Overflow
+01: Timer 1 Overflow
+10:Timer 2 High Byte Overflow
+11: Timer 2 Low Byte Overflow		
+
+
+22.4.2.	SMB0CN Control Register
+SMB0CN is used to control the interface and to provide status information (see SFR Definition 22.2). The higher four bits of SMB0CN (MASTER, TXMODE, STA, and STO) form a status vector that can be used to jump to service routines. MASTER indicates whether a device is the master or slave during the current transfer. TXMODE indicates whether the device is transmitting or receiving data for the current byte. 
+STA and STO indicate that a START and/or STOP has been detected or generated since the last SMBus interrupt. STA and STO are also used to generate START and STOP conditions when operating as a master. Writing a 1 to STA will cause the SMBus interface to enter Master Mode and generate a START when the bus becomes free (STA is not cleared by hardware after the START is generated). Writing a 1 to STO while in Master Mode will cause the interface to generate a STOP and end the current transfer after the next ACK cycle. If STO and STA are both set (while in Master Mode), a STOP followed by a START will be generated.
+The ARBLOST bit indicates that the interface has lost an arbitration. This may occur anytime the interface is transmitting (master or slave). A lost arbitration while operating as a slave indicates a bus error condition. ARBLOST is cleared by hardware each time SI is cleared.
+The SI bit (SMBus Interrupt Flag) is set at the beginning and end of each transfer, after each byte frame, or when an arbitration is lost; see Table 22.3 for more details. 
+Important Note About the SI Bit: The SMBus interface is stalled while SI is set; thus SCL is held low, and the bus is stalled until software clears SI. 
+22.4.2.1.	Software ACK Generation
+When the EHACK bit in register SMB0ADM is cleared to 0, the firmware on the device must detect incoming slave addresses and ACK or NACK the slave address and incoming data bytes. As a receiver, writing the ACK bit defines the outgoing ACK value; as a transmitter, reading the ACK bit indicates the value received during the last ACK cycle. ACKRQ is set each time a byte is received, indicating that an outgoing ACK value is needed. When ACKRQ is set, software should write the desired outgoing value to the ACK bit before clearing SI. A NACK will be generated if software does not write the ACK bit before clearing SI. SDA will reflect the defined ACK value immediately following a write to the ACK bit; however SCL will remain low until SI is cleared. If a received slave address is not acknowledged, further slave events will be ignored until the next START is detected.
+22.4.2.2.	Hardware ACK Generation
+When the EHACK bit in register SMB0ADM is set to 1, automatic slave address recognition and ACK generation is enabled. More detail about automatic slave address recognition can be found in Section 22.4.3. As a receiver, the value currently specified by the ACK bit will be automatically sent on the bus during the ACK cycle of an incoming data byte. As a transmitter, reading the ACK bit indicates the value received on the last ACK cycle. The ACKRQ bit is not used when hardware ACK generation is enabled. If a received slave address is NACKed by hardware, further slave events will be ignored until the next START is detected, and no interrupt will be generated.
+Table 22.3 lists all sources for hardware changes to the SMB0CN bits. Refer to Table 22.5 for SMBus status decoding using the SMB0CN register. 
+Refer to the C8051F930 errata when using hardware ACK generation on C8051F930/31/20/21 devices.
+
+SFR Definition 22.2. SMB0CN: SMBus Control
+Bit	7	6	5	4	3	2	1	0
+Name	MASTER	TXMODE	STA	STO	ACKRQ	ARBLOST	ACK	SI
+Type	R	R	R/W	R/W	R	R	R/W	R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC0; Bit-Addressable
+Bit	Name	Description	Read	Write
+7	MASTER	SMBus Master/Slave Indicator. This read-only bit indicates when the SMBus is operating as a master.	0: SMBus operating in slave mode.
+1: SMBus operating in master mode.	N/A
+6	TXMODE	SMBus Transmit Mode Indicator. This read-only bit indicates when the SMBus is operating as a transmitter. 	0: SMBus in Receiver Mode.
+1: SMBus in Transmitter Mode.	N/A
+5	STA	SMBus Start Flag.	0: No Start or repeated Start detected.
+1: Start or repeated Start detected.	0: No Start generated.
+1: When Configured as a Master, initiates a START or repeated START.
+4	STO	SMBus Stop Flag.	0: No Stop condition detected.
+1: Stop condition detected (if in Slave Mode) or pending (if in Master Mode).	0: No STOP condition is transmitted.
+1: When configured as a Master, causes a STOP condition to be transmitted after the next ACK cycle.
+Cleared by Hardware.
+3	ACKRQ	SMBus Acknowledge Request.	0: No Ack requested
+1: ACK requested	N/A
+2	ARBLOST	SMBus Arbitration Lost Indicator.	0: No arbitration error.
+1: Arbitration Lost	N/A
+1	ACK	SMBus Acknowledge.	0: NACK received.
+1: ACK received.	0: Send NACK
+1: Send ACK
+0	SI	SMBus Interrupt Flag.
+This bit is set by hardware under the conditions listed in Table 15.3. SI must be cleared by software. While SI is set, SCL is held low and the SMBus is stalled.	0: No interrupt pending
+1: Interrupt Pending	0: Clear interrupt, and initiate next state machine event.
+1: Force interrupt.
+
+
+Table 22.3. Sources for Hardware Changes to SMB0CN
+Bit	Set by Hardware When:	Cleared by Hardware When:
+MASTER	• A START is generated.	• A STOP is generated.
+• Arbitration is lost.
+TXMODE	• START is generated.
+• SMB0DAT is written before the start of an SMBus frame.	• A START is detected.
+• Arbitration is lost.
+• SMB0DAT is not written before the start of an SMBus frame.
+STA	• A START followed by an address byte is received.	• Must be cleared by software.
+STO	• A STOP is detected while addressed as a slave.
+• Arbitration is lost due to a detected STOP.	• A pending STOP is generated.
+ACKRQ	• A byte has been received and an ACK response value is needed (only when hardware ACK is not enabled).	• After each ACK cycle.
+ARBLOST	• A repeated START is detected as a MASTER when STA is low (unwanted repeated START).
+• SCL is sensed low while attempting to generate a STOP or repeated START condition.
+• SDA is sensed low while transmitting a 1 (excluding ACK bits).	• Each time SI is cleared.
+ACK	• The incoming ACK value is low 
+(ACKNOWLEDGE).	• The incoming ACK value is high (NOT ACKNOWLEDGE).
+SI	• A START has been generated.
+• Lost arbitration.
+• A byte has been transmitted and an ACK/NACK received.
+• A byte has been received.
+• A START or repeated START followed by a slave address + R/W has been received. 
+• A STOP has been received. 	• Must be cleared by software.
+
+22.4.3.	Hardware Slave Address Recognition
+The SMBus hardware has the capability to automatically recognize incoming slave addresses and send an ACK without software intervention. Automatic slave address recognition is enabled by setting the EHACK bit in register SMB0ADM to 1. This will enable both automatic slave address recognition and automatic hardware ACK generation for received bytes (as a master or slave). More detail on automatic hardware ACK generation can be found in Section 22.4.2.2.
+The registers used to define which address(es) are recognized by the hardware are the SMBus Slave Address register (SFR Definition 22.3) and the SMBus Slave Address Mask register (SFR Definition 22.4). A single address or range of addresses (including the General Call Address 0x00) can be specified using these two registers. The most-significant seven bits of the two registers are used to define which addresses will be ACKed. A 1 in bit positions of the slave address mask SLVM[6:0] enable a comparison between the received slave address and the hardware’s slave address SLV[6:0] for those bits. A 0 in a bit of the slave address mask means that bit will be treated as a “don’t care” for comparison purposes. In this case, either a 1 or a 0 value are acceptable on the incoming slave address. Additionally, if the GC bit in register SMB0ADR is set to 1, hardware will recognize the General Call Address (0x00). Table 22.4 shows some example parameter settings and the slave addresses that will be recognized by hardware under those conditions. Refer to the C8051F930 errata when using hardware ACK generation on C8051F930/31/20/21 devices.
+
+Table 22.4. Hardware Address Recognition Examples (EHACK = 1)
+Hardware Slave Address
+SLV[6:0]	Slave Address Mask
+SLVM[6:0]	GC bit	Slave Addresses Recognized by Hardware
+0x34	0x7F	0	0x34
+0x34	0x7F	1	0x34, 0x00 (General Call)
+0x34	0x7E	0	0x34, 0x35
+0x34	0x7E	1	0x34, 0x35, 0x00 (General Call)
+0x70	0x73	0	0x70, 0x74, 0x78, 0x7C
+
+
+SFR Definition 22.3. SMB0ADR: SMBus Slave Address
+Bit	7	6	5	4	3	2	1	0
+Name	SLV[6:0]							GC
+Type	R/W							R/W
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xF4
+Bit	Name	Function		
+7:1	SLV[6:0]	SMBus Hardware Slave Address.
+Defines the SMBus Slave Address(es) for automatic hardware acknowledgement. Only address bits which have a 1 in the corresponding bit position in SLVM[6:0] are checked against the incoming address. This allows multiple addresses to be recognized.		
+0	GC	General Call Address Enable.
+When hardware address recognition is enabled (EHACK = 1), this bit will determine whether the General Call Address (0x00) is also recognized by hardware.
+0: General Call Address is ignored.
+1: General Call Address is recognized.		
+
+
+SFR Definition 22.4. SMB0ADM: SMBus Slave Address Mask
+Bit	7	6	5	4	3	2	1	0
+Name	SLVM[6:0]							EHACK
+Type	R/W							R/W
+Reset	1	1	1	1	1	1	1	0
+
+SFR Page = 0x0; SFR Address = 0xF5
+Bit	Name	Function		
+7:1	SLVM[6:0]	SMBus Slave Address Mask.
+Defines which bits of register SMB0ADR are compared with an incoming address byte, and which bits are ignored. Any bit set to 1 in SLVM[6:0] enables comparisons with the corresponding bit in SLV[6:0]. Bits set to 0 are ignored (can be either 0 or 1 in the incoming address).		
+0	EHACK	Hardware Acknowledge Enable.
+Enables hardware acknowledgement of slave address and received data bytes.
+0: Firmware must manually acknowledge all incoming address and data bytes.
+1: Automatic Slave Address Recognition and Hardware Acknowledge is Enabled.		
+
+
+22.4.4.	Data Register
+The SMBus Data register SMB0DAT holds a byte of serial data to be transmitted or one that has just been received. Software may safely read or write to the data register when the SI flag is set. Software should not attempt to access the SMB0DAT register when the SMBus is enabled and the SI flag is cleared to logic 0, as the interface may be in the process of shifting a byte of data into or out of the register. 
+Data in SMB0DAT is always shifted out MSB first. After a byte has been received, the first bit of received data is located at the MSB of SMB0DAT. While data is being shifted out, data on the bus is simultaneously being shifted in. SMB0DAT always contains the last data byte present on the bus. In the event of lost arbitration, the transition from master transmitter to slave receiver is made with the correct data or address in SMB0DAT.
+
+SFR Definition 22.5. SMB0DAT: SMBus Data
+Bit	7	6	5	4	3	2	1	0
+Name	SMB0DAT[7:0]							
+Type	R/W							
+Reset	0	0	0	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC2
+Bit	Name	Function		
+7:0	SMB0DAT[7:0]	SMBus Data.
+The SMB0DAT register contains a byte of data to be transmitted on the SMBus serial interface or a byte that has just been received on the SMBus serial interface. The CPU can read from or write to this register whenever the SI serial interrupt flag (SMB0CN.0) is set to logic 1. The serial data in the register remains stable as long as the SI flag is set. When the SI flag is not set, the system may be in the process of shifting data in/out and the CPU should not attempt to access this register.		
+
+
+22.5.	SMBus Transfer Modes
+The SMBus interface may be configured to operate as master and/or slave. At any particular time, it will be operating in one of the following four modes: Master Transmitter, Master Receiver, Slave Transmitter, or Slave Receiver. The SMBus interface enters Master Mode any time a START is generated, and remains in Master Mode until it loses an arbitration or generates a STOP. An SMBus interrupt is generated at the end of all SMBus byte frames. Note that the position of the ACK interrupt when operating as a receiver depends on whether hardware ACK generation is enabled. As a receiver, the interrupt for an ACK occurs before the ACK with hardware ACK generation disabled, and after the ACK when hardware ACK generation is enabled. As a transmitter, interrupts occur after the ACK, regardless of whether hardware ACK generation is enabled or not.
+22.5.1.	Write Sequence (Master)
+During a write sequence, an SMBus master writes data to a slave device. The master in this transfer will be a transmitter during the address byte, and a transmitter during all data bytes. The SMBus interface generates the START condition and transmits the first byte containing the address of the target slave and the data direction bit. In this case the data direction bit (R/W) will be logic 0 (WRITE). The master then transmits one or more bytes of serial data. After each byte is transmitted, an acknowledge bit is generated by the slave. The transfer is ended when the STO bit is set and a STOP is generated. Note that the interface will switch to Master Receiver Mode if SMB0DAT is not written following a Master Transmitter interrupt. Figure 22.5 shows a typical master write sequence. Two transmit data bytes are shown, though any number of bytes may be transmitted. All “data byte transferred” interrupts occur after the ACK cycle in this mode, regardless of whether hardware ACK generation is enabled.
+
+Figure 22.5. Typical Master Write Sequence
+22.5.2.	Read Sequence (Master)
+During a read sequence, an SMBus master reads data from a slave device. The master in this transfer will be a transmitter during the address byte, and a receiver during all data bytes. The SMBus interface generates the START condition and transmits the first byte containing the address of the target slave and the data direction bit. In this case the data direction bit (R/W) will be logic 1 (READ). Serial data is then received from the slave on SDA while the SMBus outputs the serial clock. The slave transmits one or more bytes of serial data. 
+If hardware ACK generation is disabled, the ACKRQ is set to 1 and an interrupt is generated after each received byte. Software must write the ACK bit at that time to ACK or NACK the received byte. 
+With hardware ACK generation enabled, the SMBus hardware will automatically generate the ACK/NACK, and then post the interrupt. It is important to note that the appropriate ACK or NACK value should be set up by the software prior to receiving the byte when hardware ACK generation is enabled.
+Writing a 1 to the ACK bit generates an ACK; writing a 0 generates a NACK. Software should write a 0 to the ACK bit for the last data transfer, to transmit a NACK. The interface exits Master Receiver Mode after the STO bit is set and a STOP is generated. The interface will switch to Master Transmitter Mode if SMB0DAT is written while an active Master Receiver. Figure 22.6 shows a typical master read sequence. Two received data bytes are shown, though any number of bytes may be received. The “data byte transferred” interrupts occur at different places in the sequence, depending on whether hardware ACK generation is enabled. The interrupt occurs before the ACK with hardware ACK generation disabled, and after the ACK when hardware ACK generation is enabled.
+
+Figure 22.6. Typical Master Read Sequence
+22.5.3.	Write Sequence (Slave)
+During a write sequence, an SMBus master writes data to a slave device. The slave in this transfer will be a receiver during the address byte, and a receiver during all data bytes. When slave events are enabled (INH = 0), the interface enters Slave Receiver Mode when a START followed by a slave address and direction bit (WRITE in this case) is received. If hardware ACK generation is disabled, upon entering Slave Receiver Mode, an interrupt is generated and the ACKRQ bit is set. The software must respond to the received slave address with an ACK, or ignore the received slave address with a NACK. If hardware ACK generation is enabled, the hardware will apply the ACK for a slave address which matches the criteria set up by SMB0ADR and SMB0ADM. The interrupt will occur after the ACK cycle.
+If the received slave address is ignored (by software or hardware), slave interrupts will be inhibited until the next START is detected. If the received slave address is acknowledged, zero or more data bytes are received. 
+If hardware ACK generation is disabled, the ACKRQ is set to 1 and an interrupt is generated after each received byte. Software must write the ACK bit at that time to ACK or NACK the received byte. 
+With hardware ACK generation enabled, the SMBus hardware will automatically generate the ACK/NACK, and then post the interrupt. The appropriate ACK or NACK value should be set up by the software prior to receiving the byte when hardware ACK generation is enabled.
+The interface exits Slave Receiver Mode after receiving a STOP. Note that the interface will switch to Slave Transmitter Mode if SMB0DAT is written while an active Slave Receiver. Figure 22.7 shows a typical slave write sequence. Two received data bytes are shown, though any number of bytes may be received. Notice that the ‘data byte transferred’ interrupts occur at different places in the sequence, depending on whether hardware ACK generation is enabled. The interrupt occurs before the ACK with hardware ACK generation disabled, and after the ACK when hardware ACK generation is enabled.
+
+Figure 22.7. Typical Slave Write Sequence
+22.5.4.	Read Sequence (Slave)
+During a read sequence, an SMBus master reads data from a slave device. The slave in this transfer will be a receiver during the address byte, and a transmitter during all data bytes. When slave events are enabled (INH = 0), the interface enters Slave Receiver Mode (to receive the slave address) when a START followed by a slave address and direction bit (READ in this case) is received. If hardware ACK generation is disabled, upon entering Slave Receiver Mode, an interrupt is generated and the ACKRQ bit is set. The software must respond to the received slave address with an ACK, or ignore the received slave address with a NACK. If hardware ACK generation is enabled, the hardware will apply the ACK for a slave address which matches the criteria set up by SMB0ADR and SMB0ADM. The interrupt will occur after the ACK cycle.
+If the received slave address is ignored (by software or hardware), slave interrupts will be inhibited until the next START is detected. If the received slave address is acknowledged, zero or more data bytes are transmitted. If the received slave address is acknowledged, data should be written to SMB0DAT to be transmitted. The interface enters Slave Transmitter Mode, and transmits one or more bytes of data. After each byte is transmitted, the master sends an acknowledge bit; if the acknowledge bit is an ACK, SMB0DAT should be written with the next data byte. If the acknowledge bit is a NACK, SMB0DAT should not be written to before SI is cleared (an error condition may be generated if SMB0DAT is written following a received NACK while in Slave Transmitter Mode). The interface exits Slave Transmitter Mode after receiving a STOP. Note that the interface will switch to Slave Receiver Mode if SMB0DAT is not written following a Slave Transmitter interrupt. Figure 22.8 shows a typical slave read sequence. Two transmitted data bytes are shown, though any number of bytes may be transmitted. All of the “data byte transferred” interrupts occur after the ACK cycle in this mode, regardless of whether hardware ACK generation is enabled.
+
+Figure 22.8. Typical Slave Read Sequence
+22.6.	SMBus Status Decoding
+The current SMBus status can be easily decoded using the SMB0CN register. The appropriate actions to take in response to an SMBus event depend on whether hardware slave address recognition and ACK generation is enabled or disabled. Table 22.5 describes the typical actions when hardware slave address recognition and ACK generation is disabled. Table 22.6 describes the typical actions when hardware slave address recognition and ACK generation is enabled. In the tables, STATUS VECTOR refers to the four upper bits of SMB0CN: MASTER, TXMODE, STA, and STO. The shown response options are only the typical responses; application-specific procedures are allowed as long as they conform to the SMBus specification. Highlighted responses are allowed by hardware but do not conform to the SMBus specification.
+
+Table 22.5. SMBus Status Decoding With Hardware ACK Generation Disabled (EHACK = 0) 
+Mode	Values Read				Current SMbus State	Typical Response Options	Values to Write			Next Status
+Vector Expected
+	Status 
+Vector	ACKRQ	ARBLOST	ACK			STA	STO	ACK	
+Master Transmitter	1110	0	0	X	A master START was generated.	Load slave address + R/W into SMB0DAT.	0	0	X	1100
+	1100	0	0	0	A master data or address byte was transmitted; NACK received.	Set STA to restart transfer.	1	0	X	1110
+						Abort transfer.	0	1	X	-
+		0	0	1	A master data or address byte was transmitted; ACK received.	Load next data byte into SMB0DAT.	0	0	X	1100
+						End transfer with STOP.	0	1	X	-
+						End transfer with STOP and start another transfer.	1	1	X	-
+						Send repeated START.	1	0	X	1110
+						Switch to Master Receiver Mode (clear SI without writing new data to SMB0DAT).	0	0	X	1000
+Master Receiver	1000	1	0	X	A master data byte was received; ACK requested.	Acknowledge received byte; Read SMB0DAT.	0	0	1	1000
+						Send NACK to indicate last byte, and send STOP.	0	1	0	-
+						Send NACK to indicate last byte, and send STOP followed by START.	1	1	0	1110
+						Send ACK followed by repeated START.	1	0	1	1110
+						Send NACK to indicate last byte, and send repeated START.	1	0	0	1110
+						Send ACK and switch to Master Transmitter Mode (write to SMB0DAT before clearing SI).	0	0	1	1100
+						Send NACK and switch to Master Transmitter Mode (write to SMB0DAT before clearing SI).	0	0	0	1100
+Slave Transmitter	0100	0	0	0	A slave byte was transmitted; NACK received.	No action required (expecting STOP condition).	0	0	X	0001
+		0	0	1	A slave byte was transmitted; ACK received.	Load SMB0DAT with next data byte to transmit.	0	0	X	0100
+		0	1	X	A Slave byte was transmitted; error detected.	No action required (expecting Master to end transfer).	0	0	X	0001
+										
+	0101	0	X	X	An illegal STOP or bus error was detected while a Slave Transmission was in progress.	Clear STO.	0	0	X	-
+Slave Receiver
+	0010	1	0	X	A slave address + R/W was received; ACK requested.	If Write, Acknowledge received address	0	0	1	0000
+						If Read, Load SMB0DAT with data byte; ACK received address	0	0	1	0100
+						NACK received address.	0	0	0	-
+		1	1	X	Lost arbitration as master; slave address + R/W received; ACK requested.	If Write, Acknowledge received address	0	0	1	0000
+						If Read, Load SMB0DAT with data byte; ACK received address	0	0	1	0100
+						NACK received address.	0	0	0	-
+						Reschedule failed transfer; NACK received address.	1	0	0	1110
+	0001	0	0	X	A STOP was detected while addressed as a Slave Transmitter or Slave Receiver.	Clear STO.	0	0	X	-
+		1	1	X	Lost arbitration while attempting a STOP.	No action required (transfer complete/aborted).	0	0	0	-
+	0000	1	0	X	A slave byte was received; ACK requested.	Acknowledge received byte; Read SMB0DAT.	0	0	1	0000
+						NACK received byte.	0	0	0	-
+Bus Error Condition	0010	0	1	X	Lost arbitration while attempting a repeated START.	Abort failed transfer.	0	0	X	-
+						Reschedule failed transfer.	1	0	X	1110
+	0001	0	1	X	Lost arbitration due to a detected STOP. 	Abort failed transfer.	0	0	X	-
+						Reschedule failed transfer.	1	0	X	1110
+	0000	1	1	X	Lost arbitration while transmitting a data byte as master.	Abort failed transfer.	0	0	0	-
+						Reschedule failed transfer.	1	0	0	1110
+
+
+Table 22.6. SMBus Status Decoding With Hardware ACK Generation Enabled (EHACK = 1) 
+Mode	Values Read				Current SMbus State	Typical Response Options	Values to Write			Next Status
+Vector Expected
+	Status 
+Vector	ACKRQ	ARBLOST	ACK			STA	STO	ACK	
+Master Transmitter	1110	0	0	X	A master START was generated.	Load slave address + R/W into SMB0DAT.	0	0	X	1100
+	1100	0	0	0	A master data or address byte was transmitted; NACK received.	Set STA to restart transfer.	1	0	X	1110
+						Abort transfer.	0	1	X	-
+		0	0	1	A master data or address byte was transmitted; ACK received.	Load next data byte into SMB0DAT.	0	0	X	1100
+						End transfer with STOP.	0	1	X	-
+						End transfer with STOP and start another transfer.	1	1	X	-
+						Send repeated START.	1	0	X	1110
+						Switch to Master Receiver Mode (clear SI without writing new data to SMB0DAT). Set ACK for initial data byte.	0	0	1	1000
+Master Receiver	1000	0	0	1	A master data byte was received; ACK sent.	Set ACK for next data byte;
+Read SMB0DAT.	0	0	1	1000
+						Set NACK to indicate next data byte as the last data byte;
+Read SMB0DAT.	0	0	0	1000
+						Initiate repeated START.	1	0	0	1110
+						Switch to Master Transmitter Mode (write to SMB0DAT before clearing SI).	0	0	X	1100
+		0	0	0	A master data byte was received; NACK sent (last byte).	Read SMB0DAT; send STOP.	0	1	0	-
+						Read SMB0DAT; Send STOP followed by START.	1	1	0	1110
+						Initiate repeated START.	1	0	0	1110
+						Switch to Master Transmitter Mode (write to SMB0DAT before clearing SI).	0	0	X	1100
+Slave Transmitter	0100	0	0	0	A slave byte was transmitted; NACK received.	No action required (expecting STOP condition).	0	0	X	0001
+		0	0	1	A slave byte was transmitted; ACK received.	Load SMB0DAT with next data byte to transmit.	0	0	X	0100
+		0	1	X	A Slave byte was transmitted; error detected.	No action required (expecting Master to end transfer).	0	0	X	0001
+										
+	0101	0	X	X	An illegal STOP or bus error was detected while a Slave Transmission was in progress.	Clear STO.	0	0	X	—
+Slave Receiver
+	0010	0	0	X	A slave address + R/W was received; ACK sent.	If Write, Set ACK for first data byte.	0	0	1	0000
+						If Read, Load SMB0DAT with data byte	0	0	X	0100
+		0	1	X	Lost arbitration as master; slave address + R/W received; ACK sent.	If Write, Set ACK for first data byte.	0	0	1	0000
+						If Read, Load SMB0DAT with data byte	0	0	X	0100
+						Reschedule failed transfer	1	0	X	1110
+	0001	0	0	X	A STOP was detected while addressed as a Slave Transmitter or Slave Receiver.	Clear STO.	0	0	X	—
+		0	1	X	Lost arbitration while attempting a STOP.	No action required (transfer complete/aborted).	0	0	0	—
+	0000	0	0	X	A slave byte was received.	Set ACK for next data byte;
+Read SMB0DAT.	0	0	1	0000
+						Set NACK for next data byte;
+Read SMB0DAT.	0	0	0	0000
+Bus Error Condition	0010	0	1	X	Lost arbitration while attempting a repeated START.	Abort failed transfer.	0	0	X	—
+						Reschedule failed transfer.	1	0	X	1110
+	0001	0	1	X	Lost arbitration due to a detected STOP. 	Abort failed transfer.	0	0	X	—
+						Reschedule failed transfer.	1	0	X	1110
+	0000	0	1	X	Lost arbitration while transmitting a data byte as master.	Abort failed transfer.	0	0	X	—
+						Reschedule failed transfer.	1	0	X	1110

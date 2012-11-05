@@ -1,0 +1,110 @@
+﻿18.	Reset Sources
+Reset circuitry allows the controller to be easily placed in a predefined default condition. On entry to this reset state, the following occur:
+•	CIP-51 halts program execution
+•	Special Function Registers (SFRs) are initialized to their defined reset values
+•	External Port pins are forced to a known state
+•	Interrupts and timers are disabled
+All SFRs are reset to the predefined values noted in the SFR descriptions. The contents of RAM are unaffected during a reset; any previously stored data is preserved as long as power is not lost. Since the stack pointer SFR is reset, the stack is effectively lost, even though the data on the stack is not altered. 
+The Port I/O latches are reset to 0xFF (all logic ones) in open-drain mode. Weak pullups are enabled during and after the reset. For VDD Monitor and power-on resets, the RST pin is driven low until the device exits the reset state.
+On exit from the reset state, the program counter (PC) is reset, and the system clock defaults to an internal oscillator. Refer to Section “19. Clocking Sources” on page 191 for information on selecting and configuring the system clock source. The Watchdog Timer is enabled with the system clock divided by 12 as its clock source (Section “26.4. Watchdog Timer Mode” on page 316 details the use of the Watchdog Timer). Program execution begins at location 0x0000.
+
+Figure 18.1. Reset Sources
+18.1.	Power-On (VBAT Supply Monitor) Reset 
+During power-up, the device is held in a reset state and the RST pin is driven low until VBAT settles above VPOR. An additional delay occurs before the device is released from reset; the delay decreases as the VBAT ramp time increases (VBAT ramp time is defined as how fast VBAT ramps from 0 V to VPOR). Figure 18.3 plots the power-on and VDD monitor reset timing. For valid ramp times (less than 3 ms), the power-on reset delay (TPORDelay) is typically 3 ms (VBAT = 0.9 V), 7 ms (VBAT = 1.8 V), or 15 ms (VBAT = 3.6 V).
+Note:	The maximum VDD ramp time is 3 ms; slower ramp times may cause the device to be released from reset before VBAT reaches the VPOR level. 
+On exit from a power-on reset, the PORSF flag (RSTSRC.1) is set by hardware to logic 1. When PORSF is set, all of the other reset flags in the RSTSRC Register are indeterminate (PORSF is cleared by all other resets). Since all resets cause program execution to begin at the same location (0x0000), software can read the PORSF flag to determine if a power-up was the cause of reset. The contents of internal data memory should be assumed to be undefined after a power-on reset. 
+
+Figure 18.2. Power-Fail Reset Timing Diagram
+18.2.	Power-Fail (VDD/DC+ Supply Monitor) Reset
+C8051F93x-C8051F92x devices have a VDD/DC+ Supply Monitor that is enabled and selected as a reset source after each power-on or power-fail reset. When enabled and selected as a reset source, any power down transition or power irregularity that causes VDD/DC+ to drop below VRST will cause the RST pin to be driven low and the CIP-51 will be held in a reset state (see Figure 18.3). When VDD/DC+ returns to a level above VRST, the CIP-51 will be released from the reset state. 
+After a power-fail reset, the PORSF flag reads 1, the contents of RAM invalid, and the VDD/DC+ supply monitor is enabled and selected as a reset source. The enable state of the VDD/DC+ supply monitor and its selection as a reset source is only altered by power-on and power-fail resets. For example, if the VDD/DC+ supply monitor is de-selected as a reset source and disabled by software, then a software reset is performed, the VDD/DC+ supply monitor will remain disabled and de-selected after the reset. 
+In battery-operated systems, the contents of RAM can be preserved near the end of the battery’s usable life if the device is placed in sleep mode prior to a power-fail reset occurring. When the device is in sleep mode, the power-fail reset is automatically disabled and the contents of RAM are preserved as long as the VBAT supply does not fall below VPOR. A large capacitor can be used to hold the power supply voltage above VPOR while the user is replacing the battery. Upon waking from sleep mode, the enable and reset source select state of the VDD/DC+ supply monitor are restored to the value last set by the user.
+To allow software early notification that a power failure is about to occur, the VDDOK bit is cleared when the VDD/DC+ supply falls below the VWARN threshold. The VDDOK bit can be configured to generate an interrupt. See Section “12. Interrupt Handler” on page 136 for more details. 
+Important Note: To protect the integrity of Flash contents, the VDD/DC+ supply monitor must be enabled and selected as a reset source if software contains routines which erase or write Flash memory. If the VDD/DC+ supply monitor is not enabled, any erase or write performed on Flash memory will cause a Flash Error device reset.
+
+Figure 18.3. Power-Fail Reset Timing Diagram
+Important Notes: 
+•	The Power-on Reset (POR) delay is not incurred after a VDD/DC+ supply monitor reset. See Section “4. Electrical Characteristics” on page 45 for complete electrical characteristics of the VDD/DC+ monitor.
+•	Software should take care not to inadvertently disable the VDD Monitor as a reset source when writing to RSTSRC to enable other reset sources or to trigger a software reset. All writes to RSTSRC should explicitly set PORSF to '1' to keep the VDD Monitor enabled as a reset source.
+•	The VDD/DC+ supply monitor must be enabled before selecting it as a reset source. Selecting the VDD/DC+ supply monitor as a reset source before it has stabilized may generate a system reset. In systems where this reset would be undesirable, a delay should be introduced between enabling the VDD/DC+ supply monitor and selecting it as a reset source. See Section “4. Electrical Characteristics” on page 45 for minimum VDD/DC+ Supply Monitor turn-on time. No delay should be introduced in systems where software contains routines that erase or write Flash memory. The procedure for enabling the VDD/DC+ supply monitor and selecting it as a reset source is shown below:
+
+	1.	Enable the VDD/DC+ Supply Monitor (VDMEN bit in VDM0CN = 1).
+	2.	Wait for the VDD/DC+ Supply Monitor to stabilize (optional). 
+	3.	Select the VDD/DC+ Supply Monitor as a reset source (PORSF bit in RSTSRC = 1).
+
+SFR Definition 18.1. VDM0CN: VDD/DC+ Supply Monitor Control
+Bit	7	6	5	4	3	2	1	0
+Name	VDMEN	VDDSTAT	VDDOK	Reserved	Reserved	Reserved		
+Type	R/W	R	R	R/W	R/W	R/W	R/W	R/W
+Reset	1	Varies	Varies	0	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xFF
+Bit	Name	Function		
+7	VDMEN	VDD/DC+ Supply Monitor Enable.
+This bit turns the VDD/DC+ supply monitor circuit on/off. The VDD/DC+ Supply Monitor cannot generate system resets until it is also selected as a reset source in register RSTSRC (SFR Definition 18.2). 
+0: VDD/DC+ Supply Monitor Disabled.
+1: VDD/DC+ Supply Monitor Enabled.		
+6	VDDSTAT	VDD/DC+ Supply Status.
+This bit indicates the current power supply status. 
+0: VDD/DC+ is at or below the VRST threshold.
+1: VDD/DC+ is above the VRST threshold.		
+5	VDDOK	VDD/DC+ Supply Status (Early Warning).
+This bit indicates the current power supply status. 
+0: VDD/DC+ is at or below the VWARN threshold.
+1: VDD/DC+ is above the VWARN monitor threshold.		
+4:2	Reserved	Reserved. 
+Read = 000b. Must Write 000b.		
+1:0	Unused	Unused. 
+Read = 00b. Write = Don’t Care.		
+
+
+18.3.	External Reset
+The external RST pin provides a means for external circuitry to force the device into a reset state. Asserting an active-low signal on the RST pin generates a reset; an external pullup and/or decoupling of the RST pin may be necessary to avoid erroneous noise-induced resets. See Table 4.4 for complete RST pin specifications. The external reset remains functional even when the device is in the low power suspend and sleep modes. The PINRSF flag (RSTSRC.0) is set on exit from an external reset.
+18.4.	Missing Clock Detector Reset
+The Missing Clock Detector (MCD) is a one-shot circuit that is triggered by the system clock. If the system clock remains high or low for more than 100 µs, the one-shot will time out and generate a reset. After a MCD reset, the MCDRSF flag (RSTSRC.2) will read 1, signifying the MCD as the reset source; otherwise, this bit reads 0. Writing a 1 to the MCDRSF bit enables the Missing Clock Detector; writing a 0 disables it. The missing clock detector reset is automatically disabled when the device is in the low power Suspend or Sleep mode. Upon exit from either low power state, the enabled/disabled state of this reset source is restored to its previous value. The state of the RST pin is unaffected by this reset. 
+18.5.	Comparator0 Reset
+Comparator0 can be configured as a reset source by writing a 1 to the C0RSEF flag (RSTSRC.5). Comparator0 should be enabled and allowed to settle prior to writing to C0RSEF to prevent any turn-on chatter on the output from generating an unwanted reset. The Comparator0 reset is active-low: if the non-inverting input voltage (on CP0+) is less than the inverting input voltage (on CP0-), the device is put into the reset state. After a Comparator0 reset, the C0RSEF flag (RSTSRC.5) will read 1 signifying Comparator0 as the reset source; otherwise, this bit reads 0. The Comparator0 reset source remains functional even when the device is in the low power suspend and sleep states as long as Comparator0 is also enabled as a wake-up source. The state of the RST pin is unaffected by this reset.
+18.6.	PCA Watchdog Timer Reset
+The programmable Watchdog Timer (WDT) function of the Programmable Counter Array (PCA) can be used to prevent software from running out of control during a system malfunction. The PCA WDT function can be enabled or disabled by software as described in Section “26.4. Watchdog Timer Mode” on page 316; the WDT is enabled and clocked by SYSCLK / 12 following any reset. If a system malfunction prevents user software from updating the WDT, a reset is generated and the WDTRSF bit (RSTSRC.5) is set to 1. The PCA Watchdog Timer reset source is automatically disabled when the device is in the low power Suspend or Sleep mode. Upon exit from either low power state, the enabled/disabled state of this reset source is restored to its previous value.The state of the RST pin is unaffected by this reset.
+18.7.	Flash Error Reset
+If a Flash read/write/erase or program read targets an illegal address, a system reset is generated. This may occur due to any of the following:
+•	A Flash write or erase is attempted above user code space. This occurs when PSWE is set to 1 and a MOVX write operation targets an address above the Lock Byte address. 
+•	A Flash read is attempted above user code space. This occurs when a MOVC operation targets an address above the Lock Byte address.
+•	A Program read is attempted above user code space. This occurs when user code attempts to branch to an address above the Lock Byte address.
+•	A Flash read, write or erase attempt is restricted due to a Flash security setting (see Section “13.3. Security Options” on page 150).
+•	A Flash write or erase is attempted while the VDD Monitor is disabled.
+
+The FERROR bit (RSTSRC.6) is set following a Flash error reset. The state of the RST pin is unaffected by this reset.
+18.8.	SmaRTClock (Real Time Clock) Reset
+The SmaRTClock can generate a system reset on two events: SmaRTClock Oscillator Fail or SmaRTClock Alarm. The SmaRTClock Oscillator Fail event occurs when the SmaRTClock Missing Clock Detector is enabled and the SmaRTClock clock is below approximately 20 kHz. A SmaRTClock alarm event occurs when the SmaRTClock Alarm is enabled and the SmaRTClock timer value matches the ALARMn registers. The SmaRTClock can be configured as a reset source by writing a 1 to the RTC0RE flag (RSTSRC.7). The SmaRTClock reset remains functional even when the device is in the low power Suspend or Sleep mode. The state of the RST pin is unaffected by this reset.
+18.9.	Software Reset
+Software may force a reset by writing a 1 to the SWRSF bit (RSTSRC.4). The SWRSF bit will read 1 following a software forced reset. The state of the RST pin is unaffected by this reset.
+
+SFR Definition 18.2. RSTSRC: Reset Source
+Bit	7	6	5	4	3	2	1	0
+Name	RTC0RE	FERROR	C0RSEF	SWRSF	WDTRSF	MCDRSF	PORSF	PINRSF
+Type	R/W	R	R/W	R/W	R	R/W	R/W	R
+Reset	Varies	Varies	Varies	Varies	Varies	Varies	Varies	Varies
+
+SFR Page = 0x0; SFR Address = 0xEF.
+Bit	Name	Function		
+Bit	Name	Description	Write	Read
+7	RTC0RE	SmaRTClock Reset Enable and Flag	0: Disable SmaRTClock as a reset source.
+1: Enable SmaRTClock as a reset source.	Set to 1 if SmaRTClock alarm or oscillator fail caused the last reset.
+6	FERROR	Flash Error Reset Flag.	N/A	Set to 1 if Flash read/write/erase error caused the last reset.
+5	C0RSEF	Comparator0 Reset Enable and Flag.	0: Disable Comparator0 as a reset source.
+1: Enable Comparator0 as a reset source.	Set to 1 if Comparator0 caused the last reset.
+4	SWRSF	Software Reset Force and Flag.	Writing a 1 forces a system reset.	Set to 1 if last reset was caused by a write to SWRSF.
+3	WDTRSF	Watchdog Timer Reset Flag.	N/A	Set to 1 if Watchdog Timer overflow caused the last reset.
+2	MCDRSF	Missing Clock Detector (MCD) Enable and Flag.	0: Disable the MCD.
+1: Enable the MCD.
+The MCD triggers a reset if a missing clock condition is detected.	Set to 1 if Missing Clock Detector timeout caused the last reset.
+1	PORSF	Power-On / Power-Fail Reset Flag, and Power-Fail Reset Enable.	0: Disable the VDD/DC+ Supply Monitor as a reset source.
+1: Enable the VDD/DC+ Supply Monitor as a reset source.3	Set to 1 anytime a power-on or VDD monitor reset occurs.2
+0	PINRSF	HW Pin Reset Flag.	N/A	Set to 1 if RST pin caused the last reset.
+Notes:
+1.	It is safe to use read-modify-write operations (ORL, ANL, etc.) to enable or disable specific interrupt sources.
+2. 	If PORSF read back 1, the value read from all other bits in this register are indeterminate.
+3. 	Writing a 1 to PORSF before the VDD/DC+ Supply Monitor is stabilized may generate a system reset.				
+
+

@@ -1,0 +1,28 @@
+﻿17.	Voltage Regulator (VREG0)
+C8051F93x-C8051F92x devices include an internal voltage regulator (VREG0) to regulate the internal core supply to 1.8 V from a VDD/DC+ supply of 1.8 to 3.6 V. Electrical characteristics for the on-chip regulator are specified in the Electrical Specifications chapter.
+The REG0CN register allows the Precision Oscillator Bias to be disabled, reducing supply current in all non-sleep power modes. This bias should only be disabled when the precision oscillator is not being used.
+The internal regulator (VREG0) is disabled when the device enters sleep mode and remains enabled when the device enters suspend mode. See Section “14. Power Management” on page 159 for complete details about low power modes.
+SFR Definition 17.1. REG0CN: Voltage Regulator Control
+Bit	7	6	5	4	3	2	1	0
+Name		Reserved	Reserved	OSCBIAS				Reserved
+Type	R	R/W	R/W	R/W	R	R	R	R/W
+Reset	0	0	0	1	0	0	0	0
+
+SFR Page = 0x0; SFR Address = 0xC9
+Bit	Name	Function		
+7	Unused	Unused. 
+Read = 0b. Write = Don’t care.		
+6	Reserved	Reserved.
+Read = 0b. Must Write 0b.		
+5	Reserved	Reserved. 
+Read = 0b. Must Write 0b.		
+4	OSCBIAS	Precision Oscillator Bias.
+When set to 1, the bias used by the precision oscillator is forced on. If the precision oscillator is not being used, this bit may be cleared to 0 to save approximately 80 µA of supply current in all non-Sleep power modes. If disabled then re-enabled, the precision oscillator bias requires 4 µs of settling time.		
+3:1	Unused	Unused. 
+Read = 000b. Write = Don’t care.		
+0	Reserved	Reserved. 
+Read = 0b. Must Write 0b.		
+
+
+17.1.	Voltage Regulator Electrical Specifications
+See Table 4.15 on page 66 for detailed Voltage Regulator Electrical Specifications.
