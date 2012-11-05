@@ -98,17 +98,38 @@ class ParseTxt:
                         if t[0][0].isnumeric() and ((t[0][-1] == 'x') or (t[0][-1].isnumeric())): # 1x:
                             # EX: 1x: 4-Wire Single-Master Mode. NSS signal is mapped as an output from the device and will assume the value of NSSMD0.		
                             if (t[0][-1] == 'x'):
-                                tmp1x = t[0][0:-1] + '0'
-                                tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
-                                row +=1
-                                reg_data.append(tmp)
-                                tmp1x = t[0][0:-1] + '1'
-                                tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                # EX: 1xx: ADC0 conversion initiated on rising edge of CNVSTR.
+                                if (t[0][-2] == 'x'):
+                                    tmp1x = t[0][0:-2] + '00'
+                                    tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                    row +=1
+                                    reg_data.append(tmp)
+                                    tmp1x = t[0][0:-2] + '01'
+                                    tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                    row +=1
+                                    reg_data.append(tmp)
+                                    tmp1x = t[0][0:-2] + '10'
+                                    tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                    row +=1
+                                    reg_data.append(tmp)
+                                    tmp1x = t[0][0:-2] + '11'
+                                    tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                    row +=1
+                                    reg_data.append(tmp)
+                                else:    
+                                    tmp1x = t[0][0:-1] + '0'
+                                    tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                    row +=1
+                                    reg_data.append(tmp)
+                                    tmp1x = t[0][0:-1] + '1'
+                                    tmp = ['','','','','','','','???',int(tmp1x,2),'','',t[1].strip('\n'),row]
+                                    row +=1
+                                    reg_data.append(tmp)
                             # EX: 00: 3-Wire Slave or 3-Wire Master Mode. NSS signal is not routed to a port pin.                                
                             else:    
                                 tmp = ['','','','','','','','???',int(t[0],2),'','',t[1].strip('\n'),row]
-                            row +=1
-                            reg_data.append(tmp)
+                                row +=1
+                                reg_data.append(tmp)
                         else: # description. EX: Selects between the following NSS operation modes:
                             # reg_data start from row 2 in excel file, so we minus 2 here.
                             reg_data[description_row - 2][11] += line.strip('\n')
@@ -175,7 +196,7 @@ class WriteXlsx:
         ws0.cell('B5').value = 'CIP51'
         ws0.cell('A6').value = 'End Variable section'
         ws0.cell('A9').value = 'Change List - Newest on Top'
-        ws0.cell('A10').value = '10/30/2012'
+        ws0.cell('A10').value = '11/05/2012'
         ws0.cell('B10').value = 'MD'
         ws0.cell('C10').value = 'Initial Kylin ' + name
         
